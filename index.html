@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control e Inventario Ganadero</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#27ae60">
+  <link rel="apple-touch-icon" href="icono-192.png">
+</head>
+<body>
+
+  <!-- ENCABEZADO CENTRADO CON NOMBRE DEL RANCHO -->
+  <div class="header-rancho">
+    <h1>Control e Inventario Ganadero</h1>
+    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <h2 id="subtitulo-rancho">Rancho San José</h2>
+      <button onclick="cambiarNombreRancho()" class="btn-editar-rancho" title="Cambiar nombre del rancho">✏️</button>
+    </div>
+  </div>
+
+  <!-- BANNER DE ALERTAS -->
+  <div id="contenedor-alertas" class="card-alerta" style="display: none;">
+    <h3>🔔 Alertas Notificadas (Partos / Vacunación / Caducidad / Stock)</h3>
+    <ul id="lista-alertas"></ul>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- VISTA 1: PRINCIPAL (OPERACIÓN Y REGISTRO)  -->
+  <!-- ========================================== -->
+  <div id="vista-principal" class="vista-contenido">
+
+    <!-- 1. REGISTRAR / EDITAR ANIMAL -->
+    <div class="card">
+      <h2 id="titulo-form-animal">🐄 Registrar Nuevo Animal (Inventario del Hato)</h2>
+      <form id="form-animal">
+        <input type="hidden" id="edit-arete-original" value="">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="arete">Número de Arete Oficial (*):</label>
+            <input type="text" id="arete" required placeholder="Ej. MX-10293">
+          </div>
+          <div class="form-group">
+            <label for="id-interno">ID Interno / Chapa:</label>
+            <input type="text" id="id-interno" placeholder="Ej. INT-045">
+          </div>
+          <div class="form-group">
+            <label for="nombre">Nombre o Código:</label>
+            <input type="text" id="nombre" placeholder="Ej. La Capitana / C-12">
+          </div>
+          <div class="form-group">
+            <label for="sexo">Sexo (*):</label>
+            <select id="sexo" required>
+              <option value="Hembra">Hembra</option>
+              <option value="Macho">Macho</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="categoria">Categoría / Estado Fisiológico (*):</label>
+            <select id="categoria" required>
+              <optgroup label="Machos">
+                <option value="Becerro">Becerro (0 a 7 meses)</option>
+                <option value="Becerro destete">Becerro destete (7 a 12 meses)</option>
+                <option value="Torete">Torete (12 a 18 meses)</option>
+                <option value="Toro joven">Toro joven (18 a 24 meses)</option>
+                <option value="Toro adulto">Toro adulto (> 24 meses)</option>
+                <option value="Semental / Toro">Semental / Toro</option>
+                <option value="Toro de engorda">Toro de engorda</option>
+              </optgroup>
+              <optgroup label="Hembras">
+                <option value="Becerra">Becerra (0 a 7 meses)</option>
+                <option value="Becerra destete">Becerra destete (7 a 12 meses)</option>
+                <option value="Novillona">Novillona (12 a 24 meses)</option>
+                <option value="Vaquilla">Vaquilla (> 24 meses al 1er parto)</option>
+                <option value="Vaca en producción">Vaca en producción</option>
+                <option value="Vaca seca / Vientre">Vaca seca / Vientre</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="raza">Raza o Cruza:</label>
+            <input type="text" id="raza" placeholder="Ej. Brahman / Simmental x Angus">
+          </div>
+          <div class="form-group">
+            <label for="fecha-nacimiento">Fecha de Nacimiento:</label>
+            <input type="date" id="fecha-nacimiento">
+          </div>
+          <div class="form-group">
+            <label for="madre">Arete de la Madre (Opcional):</label>
+            <input type="text" id="madre" list="lista-madres" placeholder="Selecciona o escribe el arete">
+            <datalist id="lista-madres"></datalist>
+          </div>
+          <div class="form-group">
+            <label for="propietario">Propietario / Rancho:</label>
+            <input type="text" id="propietario" placeholder="Ej. Rancho San José">
+          </div>
+          <div class="form-group">
+            <label for="procedencia">Procedencia:</label>
+            <input type="text" id="procedencia" placeholder="Ej. Nacido en el rancho, Compra">
+          </div>
+          <div class="form-group">
+            <label for="foto">Fotografía del Animal:</label>
+            <input type="file" id="foto" accept="image/*">
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+          <button type="submit" id="btn-submit-animal" style="flex: 2; margin-top: 0;">Guardar Animal</button>
+          <button type="button" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="flex: 1; background-color: #7f8c8d; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; display: none;">Cancelar</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 2. REPRODUCCIÓN Y GESTACIÓN -->
+    <div class="card">
+      <h2>❤️ Gestión Reproductiva (Empadres y Gestación)</h2>
+      <form id="form-reproduccion">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="arete-repro">Número de Arete (Hembra) (*):</label>
+            <input type="text" id="arete-repro" required placeholder="Ej. MX-10293">
+          </div>
+          <div class="form-group">
+            <label for="tipo-servicio">Tipo de Servicio (*):</label>
+            <select id="tipo-servicio" required>
+              <option value="Monta Natural">Monta Natural</option>
+              <option value="Inseminación Artificial">Inseminación Artificial (IA)</option>
+              <option value="Transferencia de Embrión">Transferencia de Embrión</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="semental-repro">Semental / Toro / Pajuela:</label>
+            <input type="text" id="semental-repro" placeholder="Ej. Toro Sultán / Pajuela Angus-01">
+          </div>
+          <div class="form-group">
+            <label for="fecha-servicio">Fecha de Servicio (*):</label>
+            <input type="date" id="fecha-servicio" required>
+          </div>
+          <div class="form-group">
+            <label for="estado-repro">Diagnóstico de Gestación (*):</label>
+            <select id="estado-repro" required>
+              <option value="Pendiente">Pendiente de Diagnóstico</option>
+              <option value="Preñada">Preñada (Positiva)</option>
+              <option value="Vacía">Vacía (Negativa)</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-repro">Registrar Evento Reproductivo</button>
+      </form>
+    </div>
+
+    <!-- 3. CONTROL SANITARIO -->
+    <div class="card">
+      <h2>💉 Control Sanitario e Historial Veterinario</h2>
+      <form id="form-sanidad">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="arete-sanidad">Número de Arete (*):</label>
+            <input type="text" id="arete-sanidad" required placeholder="Ej. MX-10293">
+          </div>
+          <div class="form-group">
+            <label for="tipo-sanidad">Tipo de Evento (*):</label>
+            <select id="tipo-sanidad" required>
+              <option value="Vacunación">Vacunación</option>
+              <option value="Desparasitación">Desparasitación</option>
+              <option value="Vitaminas y minerales">Vitaminas y minerales</option>
+              <option value="Tratamiento">Tratamiento médico</option>
+              <option value="Enfermedad">Diagnóstico de enfermedad</option>
+              <option value="Lesión">Atención de lesión</option>
+              <option value="Cirugía">Cirugía / Procedimiento</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-insumo-sanidad">Vincular Insumo de Inventario:</label>
+            <select id="select-insumo-sanidad">
+              <option value="">-- Sin vincular insumo --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="producto-sanidad">Producto / Medicamento (*):</label>
+            <input type="text" id="producto-sanidad" required placeholder="Ej. Ivermectina 1%">
+          </div>
+          <div class="form-group">
+            <label for="dosis-sanidad">Dosis / Aplicación:</label>
+            <input type="text" id="dosis-sanidad" placeholder="Ej. 5 ml Subcutánea">
+          </div>
+          <div class="form-group">
+            <label for="descontar-cantidad">Descontar del Stock:</label>
+            <input type="number" id="descontar-cantidad" step="0.1" value="1">
+          </div>
+          <div class="form-group">
+            <label for="fecha-sanidad">Fecha de Aplicación (*):</label>
+            <input type="date" id="fecha-sanidad" required>
+          </div>
+          <div class="form-group">
+            <label for="proxima-sanidad">Próxima Aplicación / Refuerzo:</label>
+            <input type="date" id="proxima-sanidad">
+          </div>
+        </div>
+        <button type="submit" class="btn-sanidad">Registrar Evento Sanitario</button>
+      </form>
+    </div>
+
+    <!-- 4. CONTROL DE PESAJES -->
+    <div class="card">
+      <h2>⚖️ Control de Pesajes (Peso)</h2>
+      <form id="form-peso">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="arete-peso">Número de Arete (*):</label>
+            <input type="text" id="arete-peso" required placeholder="Ej. MX-10293">
+          </div>
+          <div class="form-group">
+            <label for="fecha-peso">Fecha de Pesaje (*):</label>
+            <input type="date" id="fecha-peso" required>
+          </div>
+          <div class="form-group">
+            <label for="peso-animal">Peso Registrado (kg) (*):</label>
+            <input type="number" id="peso-animal" step="0.1" required placeholder="Ej. 420.5">
+          </div>
+        </div>
+        <button type="submit" class="btn-peso">Registrar Peso</button>
+      </form>
+    </div>
+
+    <!-- 5. CONTROL ECONÓMICO -->
+    <div class="card">
+      <h2>💰 Control Económico (Finanzas del Rancho)</h2>
+      <div class="grid-resumen-finanzas">
+        <div class="card-metrica metrica-ingresos"><small>Total Ingresos</small><h3 id="resumen-ingresos">$0.00</h3></div>
+        <div class="card-metrica metrica-egresos"><small>Total Egresos</small><h3 id="resumen-egresos">$0.00</h3></div>
+        <div class="card-metrica metrica-utilidad"><small>Utilidad Neta</small><h3 id="resumen-utilidad">$0.00</h3></div>
+      </div>
+      <form id="form-finanzas" style="margin-top: 20px;">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="tipo-finanza">Tipo de Movimiento (*):</label>
+            <select id="tipo-finanza" required>
+              <option value="Ingreso">Ingreso (+)</option>
+              <option value="Egreso">Egreso (-)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="categoria-finanza">Categoría (*):</label>
+            <select id="categoria-finanza" required></select>
+          </div>
+          <div class="form-group">
+            <label for="monto-finanza">Monto ($) (*):</label>
+            <input type="number" id="monto-finanza" step="0.01" required placeholder="Ej. 15000.00">
+          </div>
+          <div class="form-group">
+            <label for="fecha-finanza">Fecha (*):</label>
+            <input type="date" id="fecha-finanza" required>
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label for="concepto-finanza">Concepto / Detalle:</label>
+            <input type="text" id="concepto-finanza" placeholder="Ej. Venta de becerros">
+          </div>
+        </div>
+        <button type="submit" class="btn-finanzas">Registrar Movimiento Financiero</button>
+      </form>
+    </div>
+
+    <!-- 6. INVENTARIO DE MEDICAMENTOS -->
+    <div class="card">
+      <h2>📦 Inventario de Medicamentos y Materiales</h2>
+      <form id="form-medicamento">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="nombre-medicamento">Medicamento / Material (*):</label>
+            <input type="text" id="nombre-medicamento" required placeholder="Ej. Ivermectina 1%">
+          </div>
+          <div class="form-group">
+            <label for="presentacion-medicamento">Presentación (*):</label>
+            <input type="text" id="presentacion-medicamento" required placeholder="Ej. Frasco 500ml">
+          </div>
+          <div class="form-group">
+            <label for="existencia-medicamento">Existencia / Cantidad (*):</label>
+            <input type="number" id="existencia-medicamento" step="0.1" required placeholder="Ej. 8">
+          </div>
+          <div class="form-group">
+            <label for="unidad-medicamento">Unidad (*):</label>
+            <input type="text" id="unidad-medicamento" required placeholder="Ej. frascos, ml">
+          </div>
+          <div class="form-group">
+            <label for="caducidad-medicamento">Fecha de Caducidad (*):</label>
+            <input type="date" id="caducidad-medicamento" required>
+          </div>
+          <div class="form-group">
+            <label for="precio-medicamento">Costo / Precio Total ($):</label>
+            <input type="number" id="precio-medicamento" step="0.01" placeholder="Ej. 450.00">
+          </div>
+          <div class="form-group">
+            <label for="fecha-entrada-medicamento">Fecha de Entrada (*):</label>
+            <input type="date" id="fecha-entrada-medicamento" required>
+          </div>
+        </div>
+        <button type="submit" class="btn-meds">Registrar Entrada en Inventario</button>
+      </form>
+    </div>
+
+    <!-- 7. REPORTES Y GRÁFICAS -->
+    <div class="card">
+      <h2>📊 Reportes y Gráficas del Rancho</h2>
+      <div class="grid-kpis">
+        <div class="card-kpi kpi-blue"><small>Nacimientos</small><h3 id="kpi-nacimientos">0</h3></div>
+        <div class="card-kpi kpi-green"><small>Ventas (Cabezas)</small><h3 id="kpi-ventas">0</h3></div>
+        <div class="card-kpi kpi-purple"><small>Promedio GDP</small><h3 id="kpi-gdp">0.00</h3></div>
+        <div class="card-kpi kpi-orange"><small>Tasa de Preñez</small><h3 id="kpi-prenez">0%</h3></div>
+      </div>
+      <div class="grid-graficas">
+        <div class="chart-container"><h4>Composición del Inventario</h4><canvas id="graficaInventario"></canvas></div>
+        <div class="chart-container"><h4>Ingresos vs Gastos Mensuales</h4><canvas id="graficaFinanzas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- CUADRÍCULA 3x3 DE BOTONES -->
+    <div class="card" style="text-align: center;">
+      <h3 style="margin-top: 0; margin-bottom: 12px;">🗂️ Historiales y Secciones del Rancho</h3>
+      <div style="display: flex; justify-content: center;">
+        <div class="contenedor-nav">
+          <button id="btn-vista-principal" onclick="cambiarVista('principal')" class="btn-navegacion">⚙️ Operación</button>
+          <button id="btn-vista-inventario" onclick="cambiarVista('inventario')" class="btn-navegacion">📋 Inventario</button>
+          <button id="btn-vista-estados" onclick="cambiarVista('estados')" class="btn-navegacion">🏷️ Por Estado</button>
+          <button id="btn-vista-reproduccion" onclick="cambiarVista('reproduccion')" class="btn-navegacion">❤️ H. Repro</button>
+          <button id="btn-vista-sanidad" onclick="cambiarVista('sanidad')" class="btn-navegacion">💉 H. Sanitario</button>
+          <button id="btn-vista-pesajes" onclick="cambiarVista('pesajes')" class="btn-navegacion">⚖️ H. Pesajes</button>
+          <button id="btn-vista-finanzas" onclick="cambiarVista('finanzas')" class="btn-navegacion">💰 Finanzas</button>
+          <button id="btn-vista-medicamentos" onclick="cambiarVista('medicamentos')" class="btn-navegacion">📦 Insumos</button>
+          <button onclick="window.scrollTo({top:0, behavior:'smooth'})" class="btn-navegacion" style="background: #e2e8f0;">⬆️ Arriba</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. GESTIÓN DE DATOS Y RESPALDOS -->
+    <div class="card">
+      <h2>💾 Gestión de Datos y Respaldos</h2>
+      <div class="form-grid" style="margin-top:15px; align-items: end;">
+        <div class="form-group"><button onclick="exportarCSV()" class="btn-excel">📊 Exportar Inventario a Excel (CSV)</button></div>
+        <div class="form-group"><button onclick="descargarRespaldoJSON()" class="btn-respaldo">⬇️ Descargar Copia de Seguridad (JSON)</button></div>
+        <div class="form-group" style="background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+          <label for="file-restaurar" style="color:#d35400;">Restaurar Copia de Seguridad:</label>
+          <input type="file" id="file-restaurar" accept=".json">
+          <button onclick="restaurarRespaldoJSON()" style="background-color: #d35400;">⬆️ Restaurar Datos</button>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- FIN VISTA PRINCIPAL -->
+
+
+  <!-- VISTAS SECUNDARIAS -->
+  <div id="vista-inventario" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>📋 Inventario Completo del Hato (<span id="total-cabezas">0</span> cabezas)</h2>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="buscar-arete">Buscar en Inventario:</label>
+        <input type="text" id="buscar-arete" placeholder="Buscar por Arete, ID Interno, Nombre, Raza...">
+      </div>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Categoría</th><th>Raza</th><th>Edad</th><th>Madre</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-inventario"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <div id="vista-estados" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>🏷️ Hato Agrupado por Estado Fisiológico</h2>
+      <div id="contenedor-grupos-fisiologicos"></div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <div id="vista-reproduccion" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>❤️ Historial Reproductivo (<span id="total-repro">0</span> registros)</h2>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="buscar-repro">Filtrar por Arete o Semental:</label>
+        <input type="text" id="buscar-repro" placeholder="Escribe el arete de la hembra o semental...">
+      </div>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Arete Hembra</th><th>Tipo Servicio</th><th>Semental</th><th>Fecha Servicio</th><th>Estado</th><th>Probable Parto</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-reproduccion"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <div id="vista-sanidad" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>💉 Historial Sanitario e Historial Veterinario (<span id="total-sanidad">0</span> registros)</h2>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="buscar-sanidad">Filtrar por Arete o Producto:</label>
+        <input type="text" id="buscar-sanidad" placeholder="Escribe arete o medicamento aplicado...">
+      </div>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Arete</th><th>Tipo</th><th>Producto</th><th>Dosis</th><th>Aplicación</th><th>Próxima Cita</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-sanidad"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <div id="vista-pesajes" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>⚖️ Historial Completo de Pesajes (<span id="total-pesajes-historial">0</span> registros)</h2>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="buscar-peso">Filtrar por Arete:</label>
+        <input type="text" id="buscar-peso" placeholder="Escribe el arete del animal...">
+      </div>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Arete</th><th>Fecha de Pesaje</th><th>Peso (kg)</th><th>GDP (kg/día)</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-pesajes"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <div id="vista-finanzas" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>💰 Historial de Movimientos Económicos (<span id="total-finanzas">0</span> registros)</h2>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="buscar-finanzas">Filtrar Movimientos:</label>
+        <input type="text" id="buscar-finanzas" placeholder="Busca por categoría, concepto o tipo...">
+      </div>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Fecha</th><th>Monto ($)</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-finanzas"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <div id="vista-medicamentos" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>📦 Existencias de Medicamentos y Materiales</h2>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="buscar-meds">Buscar Insumo:</label>
+        <input type="text" id="buscar-meds" placeholder="Nombre del medicamento o material...">
+      </div>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Medicamento</th><th>Presentación</th><th>Existencia</th><th>Caducidad</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-medicamentos"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <!-- VENTANA MODAL -->
+  <div id="modal-historial" class="modal-oculto">
+    <div class="modal-contenido">
+      <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
+      <h2 id="modal-titulo-animal" style="margin-top: 0; color: #2c3e50;">Ficha del Animal</h2>
+      <div id="modal-info-basica" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;"></div>
+      <h3 style="border-bottom: 2px solid #27ae60; padding-bottom: 5px; color: #27ae60;">🐄 Historial de Partos (Crías Registradas)</h3>
+      <div class="tabla-contenedor" style="margin-bottom: 20px;">
+        <table><thead><tr><th>Arete Cría</th><th>Nombre</th><th>Sexo</th><th>Fecha de Nacimiento</th><th>Edad Actual</th></tr></thead><tbody id="modal-tabla-crias"></tbody></table>
+      </div>
+      <h3 style="border-bottom: 2px solid #2980b9; padding-bottom: 5px; color: #2980b9;">❤️ Historial Reproductivo</h3>
+      <div class="tabla-contenedor">
+        <table><thead><tr><th>Fecha de Servicio</th><th>Tipo</th><th>Semental</th><th>Estado</th><th>Probable Parto</th></tr></thead><tbody id="modal-tabla-repro"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

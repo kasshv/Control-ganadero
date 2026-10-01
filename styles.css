@@ -1,0 +1,213 @@
+/* =========================================
+   ESTILOS GENERALES Y DISEÑO BASE
+   ========================================= */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 15px;
+  background-color: #f4f7f6;
+  color: #333;
+}
+
+h1, h2, h3, h4 { color: #2c3e50; }
+
+/* =========================================
+   ENCABEZADO INSTITUCIONAL CENTRADO
+   ========================================= */
+.header-rancho {
+  text-align: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.header-rancho h1 {
+  margin: 0 0 5px 0;
+  font-size: 24px;
+  color: #2c3e50;
+  font-weight: 800;
+}
+
+.header-rancho h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #27ae60;
+  font-weight: 700;
+}
+
+.btn-editar-rancho {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  width: auto;
+}
+
+.btn-editar-rancho:hover {
+  background-color: #e2e8f0;
+}
+
+.card {
+  background: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+/* =========================================
+   CUADRICULA DE 3 COLUMNAS Y 3 FILAS PARA BOTONES
+   ========================================= */
+.contenedor-nav {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 460px;
+  margin-top: 8px;
+  margin-bottom: 15px;
+}
+
+.btn-navegacion {
+  background-color: #ffffff;
+  color: #2c3e50;
+  padding: 10px 6px;
+  border-radius: 25px;
+  border: 1px solid #cbd5e1;
+  text-decoration: none;
+  font-weight: 750;
+  font-size: 12px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-navegacion:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* =========================================
+   ALERTAS
+   ========================================= */
+.card-alerta {
+  background-color: #fff3cd;
+  border: 1px solid #ffeeba;
+  color: #856404;
+  padding: 12px 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.card-alerta h3 { margin-top: 0; font-size: 15px; }
+.card-alerta ul { padding-left: 20px; margin: 5px 0 0 0; }
+.card-alerta li { margin-bottom: 5px; font-weight: 600; font-size: 13px; }
+
+/* =========================================
+   RESUMEN FINANCIERO Y KPIs
+   ========================================= */
+.grid-resumen-finanzas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.card-metrica { padding: 12px; border-radius: 8px; background: #fafafa; border-left: 5px solid #ccc; }
+.card-metrica small { text-transform: uppercase; font-size: 10px; font-weight: bold; color: #666; }
+.card-metrica h3 { margin: 6px 0 0 0; font-size: 20px; }
+.metrica-ingresos { border-left-color: #27ae60; background-color: #f0fdf4; }
+.metrica-ingresos h3 { color: #1e8449; }
+.metrica-egresos { border-left-color: #e74c3c; background-color: #fef2f2; }
+.metrica-egresos h3 { color: #c0392b; }
+.metrica-utilidad { border-left-color: #2980b9; background-color: #f0f9ff; }
+.metrica-utilidad h3 { color: #1c5980; }
+
+.grid-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.card-kpi { padding: 10px; border-radius: 8px; color: white; text-align: center; }
+.card-kpi small { font-size: 10px; font-weight: bold; text-transform: uppercase; }
+.card-kpi h3 { margin: 4px 0 0 0; font-size: 18px; color: white; }
+.kpi-blue { background-color: #3498db; }
+.kpi-green { background-color: #2ecc71; }
+.kpi-purple { background-color: #9b59b6; }
+.kpi-orange { background-color: #e67e22; }
+
+/* =========================================
+   GRÁFICAS
+   ========================================= */
+.grid-graficas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+.chart-container { background: #f9f9f9; padding: 12px; border-radius: 8px; border: 1px solid #eee; text-align: center; }
+.chart-container canvas { max-height: 250px; margin: 0 auto; }
+
+/* =========================================
+   FORMULARIOS
+   ========================================= */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.form-group { margin-bottom: 4px; }
+label { display: block; font-weight: bold; margin-bottom: 3px; font-size: 12px; color: #34495e; }
+input, select, button { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; }
+
+button[type="submit"] { background-color: #27ae60; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 12px; }
+button[type="submit"]:hover { background-color: #219150; }
+.btn-repro { background-color: #e84393 !important; }
+.btn-peso { background-color: #2980b9 !important; }
+.btn-sanidad { background-color: #8e44ad !important; }
+.btn-meds { background-color: #d35400 !important; }
+.btn-finanzas { background-color: #16a085 !important; }
+.btn-excel { background-color: #107c41 !important; color: white; border: none; font-weight: bold; cursor: pointer; }
+.btn-respaldo { background-color: #34495e !important; color: white; border: none; font-weight: bold; cursor: pointer; }
+
+/* =========================================
+   TABLAS Y ETIQUETAS (BADGES)
+   ========================================= */
+.tabla-contenedor { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 8px; min-width: 800px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #ddd; font-size: 12px; }
+th { background-color: #2c3e50; color: white; white-space: nowrap; }
+
+.badge-sexo, .badge-gdp, .badge-ingreso, .badge-egreso, .badge-ok, .badge-estado {
+  padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;
+}
+.sexo-hembra { background-color: #fce4ec; color: #c2185b; }
+.sexo-macho { background-color: #e3f2fd; color: #1565c0; }
+.badge-gdp { background-color: #e8f5e9; color: #2e7d32; }
+.badge-ingreso { background-color: #d4edda; color: #155724; }
+.badge-egreso { background-color: #f8d7da; color: #721c24; }
+.badge-ok { background-color: #d4edda; color: #155724; }
+.estado-prenada { background-color: #e8f5e9; color: #2e7d32; }
+.estado-vacia { background-color: #ffeebb; color: #c62828; }
+.estado-pendiente { background-color: #fff3cd; color: #856404; }
+
+.acciones-grupo { display: flex; gap: 4px; }
+.btn-editar { background-color: #2980b9; padding: 5px 8px; width: auto; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.btn-danger { background-color: #e74c3c; padding: 5px 8px; width: auto; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.btn-historial { background-color: #f39c12; padding: 5px 8px; width: auto; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
+.img-miniatura { width: 38px; height: 38px; object-fit: cover; border-radius: 5px; border: 1px solid #ccc; display: block; }
+.sin-foto { width: 38px; height: 38px; background-color: #e0e0e0; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #666; text-align: center; }
+
+/* =========================================
+   VENTANA MODAL
+   ========================================= */
+.modal-oculto {
+  display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.6); overflow-y: auto; backdrop-filter: blur(3px);
+}
+.modal-contenido {
+  background-color: #fff; margin: 5% auto; padding: 20px; border-radius: 8px;
+  width: 90%; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative;
+}
+.cerrar-modal { color: #aaa; float: right; font-size: 26px; font-weight: bold; cursor: pointer; line-height: 1; }
+.cerrar-modal:hover { color: #e74c3c; }

@@ -1,29 +1,13 @@
 // ==========================================
-// CONFIGURACIÓN DE FIREBASE
+// 1. CARGA DE DATOS LOCALES Y NOMBRE DE RANCHO
 // ==========================================
-const firebaseConfig = {
-  apiKey: "AIzaSyDBfasIdtPgR5auy5ZaqzlKjB3gBrCL6OM",
-  authDomain: "control-ganadero-12fbe.firebaseapp.com",
-  projectId: "control-ganadero-12fbe",
-  storageBucket: "control-ganadero-12fbe.firebasestorage.app",
-  messagingSenderId: "788377969097",
-  appId: "1:788377969097:web:508bb3ea0411a0981c0818"
-};
-
-// Inicializar Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// ==========================================
-// 1. VARIABLES GLOBALES DE DATOS
-// ==========================================
-let inventario = [];
-let reproduccion = [];
-let pesajes = [];
-let sanidad = [];
-let medicamentos = [];
-let finanzas = [];
-let nombreRancho = 'Rancho San José';
+let inventario = JSON.parse(localStorage.getItem('inventario_ganadero')) || [];
+let reproduccion = JSON.parse(localStorage.getItem('reproduccion_ganadero')) || [];
+let pesajes = JSON.parse(localStorage.getItem('pesajes_ganadero')) || [];
+let sanidad = JSON.parse(localStorage.getItem('sanidad_ganadero')) || [];
+let medicamentos = JSON.parse(localStorage.getItem('medicamentos_ganadero')) || [];
+let finanzas = JSON.parse(localStorage.getItem('finanzas_ganadero')) || [];
+let nombreRancho = localStorage.getItem('nombre_rancho_ganadero') || 'Rancho San José';
 
 let chartInventarioInstance = null;
 
@@ -92,48 +76,13 @@ if (selectTipoFinanza) {
 }
 
 // ==========================================
-// CARGA INICIAL DE DATOS DESDE FIREBASE
-// ==========================================
-async function cargarDatosNube() {
-  try {
-    // 1. Rancho
-    const docRancho = await db.collection("configuracion").doc("rancho").get();
-    if (docRancho.exists && docRancho.data().nombre) {
-      nombreRancho = docRancho.data().nombre;
-    }
-
-    // 2. Colecciones
-    const [snapInv, snapRepro, snapPesajes, snapSanidad, snapMeds, snapFinanzas] = await Promise.all([
-      db.collection("inventario").get(),
-      db.collection("reproduccion").get(),
-      db.collection("pesajes").get(),
-      db.collection("sanidad").get(),
-      db.collection("medicamentos").get(),
-      db.collection("finanzas").get()
-    ]);
-
-    inventario = snapInv.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
-    reproduccion = snapRepro.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
-    pesajes = snapPesajes.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
-    sanidad = snapSanidad.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
-    medicamentos = snapMeds.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
-    finanzas = snapFinanzas.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
-
-    await actualizarEtapasFisiologicas();
-    actualizarTodo();
-  } catch (error) {
-    console.error("Error al cargar desde Firebase:", error);
-  }
-}
-
-// ==========================================
 // 2. FUNCIÓN PARA CAMBIAR NOMBRE DEL RANCHO
 // ==========================================
-window.cambiarNombreRancho = async function() {
+window.cambiarNombreRancho = function() {
   const nuevo = prompt("Escribe el nombre de tu rancho:", nombreRancho);
   if (nuevo && nuevo.trim() !== "") {
     nombreRancho = nuevo.trim();
-    await db.collection("configuracion").doc("rancho").set({ nombre: nombreRancho });
+    localStorage.setItem('nombre_rancho_ganadero', nombreRancho);
     document.getElementById('subtitulo-rancho').textContent = nombreRancho;
   }
 };
@@ -162,11 +111,10 @@ window.cambiarVista = function(vista) {
 // ==========================================
 // 4. AUTOMATIZACIÓN DE ETAPAS FISIOLÓGICAS
 // ==========================================
-async function actualizarEtapasFisiologicas() {
+function actualizarEtapasFisiologicas() {
   let cambios = false;
   const hoy = new Date();
-  
-  for (let animal of inventario) {
+  inventario.forEach(animal => {
     if (animal.fechaNacimiento) {
       const edadMeses = (hoy - new Date(animal.fechaNacimiento + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.416); 
       let nuevaCat = animal.categoria;
@@ -180,15 +128,10 @@ async function actualizarEtapasFisiologicas() {
         else if (edadMeses >= 12 && edadMeses < 24 && ['Becerra', 'Becerra destete'].includes(nuevaCat)) nuevaCat = 'Novillona';
         else if (edadMeses >= 24 && !['Vaca en producción', 'Vaca seca / Vientre', 'Vaquilla'].includes(nuevaCat)) nuevaCat = 'Vaquilla';
       }
-      if (nuevaCat !== animal.categoria) { 
-        animal.categoria = nuevaCat; 
-        cambios = true; 
-        if (animal.idDoc) {
-          await db.collection("inventario").doc(animal.idDoc).update({ categoria: nuevaCat });
-        }
-      }
+      if (nuevaCat !== animal.categoria) { animal.categoria = nuevaCat; cambios = true; }
     }
-  }
+  });
+  if (cambios) localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
 }
 
 // ==========================================
@@ -297,7 +240,7 @@ function renderizarInventario(lista = inventario) {
       <td><strong>${a.arete}</strong></td><td>${a.idInterno || '-'}</td><td>${a.nombre || '-'}</td>
       <td><span class="badge-sexo ${a.sexo === 'Hembra' ? 'sexo-hembra' : 'sexo-macho'}">${a.sexo}</span></td>
       <td>${a.categoria}</td><td>${a.raza || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td><td><strong>${a.madre || '-'}</strong></td>
-      <td><div class="acciones-grupo"><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button><button class="btn-editar" onclick="cargarAnimalParaEditar('${a.arete}')">Editar</button><button class="btn-danger" onclick="eliminarAnimal('${a.idDoc}')">Eliminar</button></div></td>
+      <td><div class="acciones-grupo"><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button><button class="btn-editar" onclick="cargarAnimalParaEditar('${a.arete}')">Editar</button><button class="btn-danger" onclick="eliminarAnimal('${a.arete}')">Eliminar</button></div></td>
     </tr>`;
   });
   if (totalCabezas) totalCabezas.textContent = inventario.length;
@@ -336,12 +279,13 @@ function renderizarReproduccion(lista = reproduccion) {
   if (!tablaRepro) return;
   tablaRepro.innerHTML = lista.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros reproductivos.</td></tr>` : '';
   [...lista].sort((a,b) => new Date(b.fechaServicio) - new Date(a.fechaServicio)).forEach(reg => {
+    const idx = reproduccion.findIndex(r => r.id === reg.id);
     const badge = reg.estado === 'Preñada' ? 'estado-prenada' : (reg.estado === 'Vacía' ? 'estado-vacia' : 'estado-pendiente');
     tablaRepro.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${reg.tipo}</td><td>${reg.semental || '-'}</td>
       <td>${formatearFecha(reg.fechaServicio)}</td><td><span class="badge-estado ${badge}">${reg.estado}</span></td>
       <td>${reg.estado === 'Preñada' ? `<strong>${formatearFecha(reg.fechaProbableParto)}</strong>` : '-'}</td>
-      <td><button class="btn-danger" onclick="eliminarRepro('${reg.idDoc}')">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarRepro(${idx})">Eliminar</button></td>
     </tr>`;
   });
   if (document.getElementById('total-repro')) document.getElementById('total-repro').textContent = reproduccion.length;
@@ -351,10 +295,11 @@ function renderizarSanidad(lista = sanidad) {
   if (!tablaSanidad) return;
   tablaSanidad.innerHTML = lista.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros sanitarios.</td></tr>` : '';
   [...lista].sort((a,b) => new Date(b.fechaAplicacion) - new Date(a.fechaAplicacion)).forEach(reg => {
+    const idx = sanidad.findIndex(s => s.id === reg.id);
     tablaSanidad.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${reg.tipo}</td><td>${reg.producto}</td><td>${reg.dosis || '-'}</td>
       <td>${formatearFecha(reg.fechaAplicacion)}</td><td><strong>${formatearFecha(reg.proximaAplicacion)}</strong></td>
-      <td><button class="btn-danger" onclick="eliminarSanidad('${reg.idDoc}')">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarSanidad(${idx})">Eliminar</button></td>
     </tr>`;
   });
   if (totalSanidad) totalSanidad.textContent = sanidad.length;
@@ -376,15 +321,16 @@ function renderizarPesajes(lista = pesajes) {
     calc.push({...reg, gdp});
   });
 
-  const ids = lista.map(p => p.idDoc);
-  calc = calc.filter(p => ids.includes(p.idDoc));
+  const ids = lista.map(p => p.id);
+  calc = calc.filter(p => ids.includes(p.id));
 
   calc.sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(reg => {
+    const idx = pesajes.findIndex(p => p.id === reg.id);
     const gdpBadge = reg.gdp !== '-' ? `<span class="badge-gdp">${reg.gdp > 0 ? '+' + reg.gdp : reg.gdp}</span>` : '-';
     tablaPesajes.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${formatearFecha(reg.fecha)}</td>
       <td><strong>${reg.peso} kg</strong></td><td>${gdpBadge}</td>
-      <td><button class="btn-danger" onclick="eliminarPesaje('${reg.idDoc}')">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarPesaje(${idx})">Eliminar</button></td>
     </tr>`;
   });
   if (totalPesajesHistorial) totalPesajesHistorial.textContent = pesajes.length;
@@ -401,12 +347,13 @@ function renderizarFinanzas(lista = finanzas) {
   if (resumenUtilidad) resumenUtilidad.textContent = formatearMoneda(totIng - totEg);
 
   [...lista].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(mov => {
+    const idx = finanzas.findIndex(f => f.id === mov.id);
     const esIng = mov.tipo === 'Ingreso';
     tablaFinanzas.innerHTML += `<tr>
       <td><span class="${esIng ? 'badge-ingreso' : 'badge-egreso'}">${mov.tipo}</span></td>
       <td>${mov.categoria}</td><td>${mov.concepto || '-'}</td><td>${formatearFecha(mov.fecha)}</td>
       <td><strong>${formatearMoneda(mov.monto)}</strong></td>
-      <td><button class="btn-danger" onclick="eliminarFinanza('${mov.idDoc}')">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarFinanza(${idx})">Eliminar</button></td>
     </tr>`;
   });
   if (totalFinanzas) totalFinanzas.textContent = finanzas.length;
@@ -418,15 +365,16 @@ function renderizarMedicamentos(lista = medicamentos) {
   
   if (selectInsumoSanidad) {
     selectInsumoSanidad.innerHTML = '<option value="">-- Sin vincular insumo --</option>';
-    medicamentos.forEach(m => selectInsumoSanidad.innerHTML += `<option value="${m.idDoc}">${m.nombre} (${m.existencia} ${m.unidad})</option>`);
+    medicamentos.forEach(m => selectInsumoSanidad.innerHTML += `<option value="${m.id}">${m.nombre} (${m.existencia} ${m.unidad})</option>`);
   }
 
   lista.forEach(med => {
+    const idx = medicamentos.findIndex(m => m.id === med.id);
     tablaMedicamentos.innerHTML += `<tr>
       <td><strong>${med.nombre}</strong></td><td>${med.presentacion}</td>
       <td><strong>${med.existencia} ${med.unidad}</strong></td><td>${formatearFecha(med.caducidad)}</td>
       <td><span class="badge-ok">Activo</span></td>
-      <td><button class="btn-danger" onclick="eliminarMedicamento('${med.idDoc}')">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarMedicamento(${idx})">Eliminar</button></td>
     </tr>`;
   });
 }
@@ -491,16 +439,15 @@ if (inputBuscarMeds) inputBuscarMeds.addEventListener('input', (e) => {
 });
 
 // ==========================================
-// 8. ENVÍO DE FORMULARIOS Y ACCIONES EN NUBE
+// 8. ENVÍO DE FORMULARIOS Y ACCIONES
 // ==========================================
 if (formAnimal) {
   formAnimal.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const idDocOriginal = document.getElementById('edit-id-doc').value;
+    const areteOrig = document.getElementById('edit-arete-original').value;
     const areteNuevo = document.getElementById('arete').value.trim();
     const fotoFile = document.getElementById('foto').files[0];
-    
-    let fotoBase64 = fotoFile ? await obtenerBase64(fotoFile) : (idDocOriginal !== "" ? (inventario.find(a => a.idDoc === idDocOriginal)?.foto || '') : '');
+    let fotoBase64 = fotoFile ? await obtenerBase64(fotoFile) : (areteOrig !== "" ? (inventario.find(a => a.arete === areteOrig)?.foto || '') : '');
 
     const animalData = {
       arete: areteNuevo,
@@ -516,27 +463,26 @@ if (formAnimal) {
       foto: fotoBase64
     };
 
-    if (idDocOriginal === "") {
+    if (areteOrig === "") {
       if (inventario.some(a => a.arete === areteNuevo)) return alert('❌ Ya existe un animal con este arete.');
-      const docRef = await db.collection("inventario").add(animalData);
-      inventario.push({ idDoc: docRef.id, ...animalData });
+      inventario.push(animalData);
     } else {
-      await db.collection("inventario").doc(idDocOriginal).update(animalData);
-      const idx = inventario.findIndex(a => a.idDoc === idDocOriginal);
-      if (idx !== -1) inventario[idx] = { idDoc: idDocOriginal, ...animalData };
+      const idx = inventario.findIndex(a => a.arete === areteOrig);
+      if (idx !== -1) inventario[idx] = animalData;
       cancelarEdicion();
     }
+    localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
     formAnimal.reset();
-    await actualizarEtapasFisiologicas();
+    actualizarEtapasFisiologicas();
     actualizarTodo();
-    alert('✅ Animal guardado correctamente en la nube.');
+    alert('✅ Animal guardado correctamente.');
   });
 }
 
 window.cargarAnimalParaEditar = function(arete) {
   const animal = inventario.find(a => a.arete === arete);
   if (!animal) return;
-  document.getElementById('edit-id-doc').value = animal.idDoc;
+  document.getElementById('edit-arete-original').value = animal.arete;
   document.getElementById('arete').value = animal.arete;
   document.getElementById('id-interno').value = animal.idInterno || '';
   document.getElementById('nombre').value = animal.nombre || '';
@@ -555,28 +501,19 @@ window.cargarAnimalParaEditar = function(arete) {
 
 window.cancelarEdicion = function() {
   formAnimal.reset();
-  document.getElementById('edit-id-doc').value = "";
+  document.getElementById('edit-arete-original').value = "";
   document.getElementById('titulo-form-animal').textContent = "🐄 Registrar Nuevo Animal (Inventario del Hato)";
   document.getElementById('btn-submit-animal').textContent = "Guardar Animal";
   document.getElementById('btn-cancelar-edicion').style.display = "none";
 };
 
 if (formRepro) {
-  formRepro.addEventListener('submit', async (e) => {
+  formRepro.addEventListener('submit', (e) => {
     e.preventDefault();
     const est = document.getElementById('estado-repro').value;
     const fServ = document.getElementById('fecha-servicio').value;
-    const reproData = {
-      arete: document.getElementById('arete-repro').value.trim(),
-      tipo: document.getElementById('tipo-servicio').value,
-      semental: document.getElementById('semental-repro').value.trim(),
-      fechaServicio: fServ,
-      estado: est,
-      fechaProbableParto: est === 'Preñada' ? new Date(new Date(fServ+'T00:00:00').setDate(new Date(fServ+'T00:00:00').getDate() + 283)).toISOString().split('T')[0] : null
-    };
-
-    const docRef = await db.collection("reproduccion").add(reproData);
-    reproduccion.push({ idDoc: docRef.id, ...reproData });
+    reproduccion.push({ id: Date.now(), arete: document.getElementById('arete-repro').value.trim(), tipo: document.getElementById('tipo-servicio').value, semental: document.getElementById('semental-repro').value.trim(), fechaServicio: fServ, estado: est, fechaProbableParto: est === 'Preñada' ? new Date(new Date(fServ+'T00:00:00').setDate(new Date(fServ+'T00:00:00').getDate() + 283)).toISOString().split('T')[0] : null });
+    localStorage.setItem('reproduccion_ganadero', JSON.stringify(reproduccion));
     formRepro.reset();
     actualizarTodo();
     alert('✅ Evento reproductivo registrado.');
@@ -584,27 +521,18 @@ if (formRepro) {
 }
 
 if (formSanidad) {
-  formSanidad.addEventListener('submit', async (e) => {
+  formSanidad.addEventListener('submit', (e) => {
     e.preventDefault();
-    const insumoIdDoc = selectInsumoSanidad.value;
-    if (insumoIdDoc) {
-      const idx = medicamentos.findIndex(m => m.idDoc === insumoIdDoc);
+    const insumoId = parseInt(selectInsumoSanidad.value);
+    if (insumoId) {
+      const idx = medicamentos.findIndex(m => m.id === insumoId);
       if (idx !== -1) {
         medicamentos[idx].existencia = Math.max(0, medicamentos[idx].existencia - parseFloat(document.getElementById('descontar-cantidad').value || 1));
-        await db.collection("medicamentos").doc(insumoIdDoc).update({ existencia: medicamentos[idx].existencia });
+        localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos));
       }
     }
-    const sanidadData = {
-      arete: document.getElementById('arete-sanidad').value.trim(),
-      tipo: document.getElementById('tipo-sanidad').value,
-      producto: inputProductoSanidad.value.trim(),
-      dosis: document.getElementById('dosis-sanidad').value.trim(),
-      fechaAplicacion: inputFechaSanidad.value,
-      proximaAplicacion: document.getElementById('proxima-sanidad').value
-    };
-
-    const docRef = await db.collection("sanidad").add(sanidadData);
-    sanidad.push({ idDoc: docRef.id, ...sanidadData });
+    sanidad.push({ id: Date.now(), arete: document.getElementById('arete-sanidad').value.trim(), tipo: document.getElementById('tipo-sanidad').value, producto: inputProductoSanidad.value.trim(), dosis: document.getElementById('dosis-sanidad').value.trim(), fechaAplicacion: inputFechaSanidad.value, proximaAplicacion: document.getElementById('proxima-sanidad').value });
+    localStorage.setItem('sanidad_ganadero', JSON.stringify(sanidad));
     formSanidad.reset(); inputFechaSanidad.value = hoyISO;
     actualizarTodo();
     alert('✅ Control sanitario registrado.');
@@ -612,16 +540,10 @@ if (formSanidad) {
 }
 
 if (formPeso) {
-  formPeso.addEventListener('submit', async (e) => {
+  formPeso.addEventListener('submit', (e) => {
     e.preventDefault();
-    const pesoData = {
-      arete: document.getElementById('arete-peso').value.trim(),
-      fecha: inputFechaPeso.value,
-      peso: parseFloat(document.getElementById('peso-animal').value)
-    };
-
-    const docRef = await db.collection("pesajes").add(pesoData);
-    pesajes.push({ idDoc: docRef.id, ...pesoData });
+    pesajes.push({ id: Date.now(), arete: document.getElementById('arete-peso').value.trim(), fecha: inputFechaPeso.value, peso: parseFloat(document.getElementById('peso-animal').value) });
+    localStorage.setItem('pesajes_ganadero', JSON.stringify(pesajes));
     formPeso.reset(); inputFechaPeso.value = hoyISO;
     actualizarTodo();
     alert('✅ Peso registrado con éxito.');
@@ -629,18 +551,10 @@ if (formPeso) {
 }
 
 if (formFinanzas) {
-  formFinanzas.addEventListener('submit', async (e) => {
+  formFinanzas.addEventListener('submit', (e) => {
     e.preventDefault();
-    const finanzaData = {
-      tipo: selectTipoFinanza.value,
-      categoria: selectCatFinanza.value,
-      monto: parseFloat(document.getElementById('monto-finanza').value),
-      fecha: inputFechaFinanza.value,
-      concepto: document.getElementById('concepto-finanza').value.trim()
-    };
-
-    const docRef = await db.collection("finanzas").add(finanzaData);
-    finanzas.push({ idDoc: docRef.id, ...finanzaData });
+    finanzas.push({ id: Date.now(), tipo: selectTipoFinanza.value, categoria: selectCatFinanza.value, monto: parseFloat(document.getElementById('monto-finanza').value), fecha: inputFechaFinanza.value, concepto: document.getElementById('concepto-finanza').value.trim() });
+    localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
     formFinanzas.reset(); inputFechaFinanza.value = hoyISO;
     actualizarTodo();
     alert('✅ Movimiento financiero registrado.');
@@ -648,105 +562,38 @@ if (formFinanzas) {
 }
 
 if (formMedicamento) {
-  formMedicamento.addEventListener('submit', async (e) => {
+  formMedicamento.addEventListener('submit', (e) => {
     e.preventDefault();
     const costo = parseFloat(document.getElementById('precio-medicamento').value) || 0;
     const nom = document.getElementById('nombre-medicamento').value.trim();
     const cant = parseFloat(document.getElementById('existencia-medicamento').value);
     const un = document.getElementById('unidad-medicamento').value.trim();
-    
-    const medData = {
-      nombre: nom,
-      presentacion: document.getElementById('presentacion-medicamento').value.trim(),
-      existencia: cant,
-      unidad: un,
-      caducidad: document.getElementById('caducidad-medicamento').value,
-      precio: costo,
-      fechaEntrada: inputFechaMedEntrada.value
-    };
-
-    const docRef = await db.collection("medicamentos").add(medData);
-    medicamentos.push({ idDoc: docRef.id, ...medData });
-
+    medicamentos.push({ id: Date.now(), nombre: nom, presentacion: document.getElementById('presentacion-medicamento').value.trim(), existencia: cant, unidad: un, caducidad: document.getElementById('caducidad-medicamento').value, precio: costo, fechaEntrada: inputFechaMedEntrada.value });
+    localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos));
     if (costo > 0) {
-      const finanzaData = {
-        tipo: 'Egreso',
-        categoria: 'Medicamentos',
-        monto: costo,
-        fecha: inputFechaMedEntrada.value,
-        concepto: `Compra de ${nom} (${cant} ${un})`
-      };
-      const docFinRef = await db.collection("finanzas").add(finanzaData);
-      finanzas.push({ idDoc: docFinRef.id, ...finanzaData });
+      finanzas.push({ id: Date.now() + 1, tipo: 'Egreso', categoria: 'Medicamentos', monto: costo, fecha: inputFechaMedEntrada.value, concepto: `Compra de ${nom} (${cant} ${un})` });
+      localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
     }
-
     formMedicamento.reset(); inputFechaMedEntrada.value = hoyISO;
     actualizarTodo();
     alert('✅ Insumo registrado en inventario.');
   });
 }
 
-// Eliminaciones en Firestore
-window.eliminarAnimal = async (idDoc) => { 
-  if (confirm(`¿Eliminar este animal?`)) { 
-    await db.collection("inventario").doc(idDoc).delete();
-    inventario = inventario.filter(a => a.idDoc !== idDoc); 
-    actualizarTodo(); 
-  } 
-};
-window.eliminarRepro = async (idDoc) => { 
-  if (confirm('¿Eliminar registro?')) { 
-    await db.collection("reproduccion").doc(idDoc).delete();
-    reproduccion = reproduccion.filter(r => r.idDoc !== idDoc); 
-    actualizarTodo(); 
-  } 
-};
-window.eliminarSanidad = async (idDoc) => { 
-  if (confirm('¿Eliminar registro?')) { 
-    await db.collection("sanidad").doc(idDoc).delete();
-    sanidad = sanidad.filter(s => s.idDoc !== idDoc); 
-    actualizarTodo(); 
-  } 
-};
-window.eliminarPesaje = async (idDoc) => { 
-  if (confirm('¿Eliminar pesaje?')) { 
-    await db.collection("pesajes").doc(idDoc).delete();
-    pesajes = pesajes.filter(p => p.idDoc !== idDoc); 
-    actualizarTodo(); 
-  } 
-};
-window.eliminarFinanza = async (idDoc) => { 
-  if (confirm('¿Eliminar movimiento?')) { 
-    await db.collection("finanzas").doc(idDoc).delete();
-    finanzas = finanzas.filter(f => f.idDoc !== idDoc); 
-    actualizarTodo(); 
-  } 
-};
-window.eliminarMedicamento = async (idDoc) => { 
-  if (confirm('¿Eliminar insumo?')) { 
-    await db.collection("medicamentos").doc(idDoc).delete();
-    medicamentos = medicamentos.filter(m => m.idDoc !== idDoc); 
-    actualizarTodo(); 
-  } 
-};
+// Eliminaciones
+window.eliminarAnimal = (arete) => { if (confirm(`¿Eliminar animal ${arete}?`)) { inventario = inventario.filter(a => a.arete !== arete); localStorage.setItem('inventario_ganadero', JSON.stringify(inventario)); actualizarTodo(); } };
+window.eliminarRepro = (i) => { if (confirm('¿Eliminar registro?')) { reproduccion.splice(i,1); localStorage.setItem('reproduccion_ganadero', JSON.stringify(reproduccion)); actualizarTodo(); } };
+window.eliminarSanidad = (i) => { if (confirm('¿Eliminar registro?')) { sanidad.splice(i,1); localStorage.setItem('sanidad_ganadero', JSON.stringify(sanidad)); actualizarTodo(); } };
+window.eliminarPesaje = (i) => { if (confirm('¿Eliminar pesaje?')) { pesajes.splice(i,1); localStorage.setItem('pesajes_ganadero', JSON.stringify(pesajes)); actualizarTodo(); } };
+window.eliminarFinanza = (i) => { if (confirm('¿Eliminar movimiento?')) { finanzas.splice(i,1); localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas)); actualizarTodo(); } };
+window.eliminarMedicamento = (i) => { if (confirm('¿Eliminar insumo?')) { medicamentos.splice(i,1); localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos)); actualizarTodo(); } };
 
-window.exportarCSV = () => { 
-  if (inventario.length === 0) return alert('Inventario vacío.'); 
-  let csv = "Arete,Nombre,Sexo,Categoria,Raza\n"; 
-  inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''}\n`); 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); 
-  link.download = "Inventario_Rancho.csv"; link.click(); 
-};
+window.exportarCSV = () => { if (inventario.length === 0) return alert('Inventario vacío.'); let csv = "Arete,Nombre,Sexo,Categoria,Raza\n"; inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''}\n`); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "Inventario_Rancho.csv"; link.click(); };
+window.descargarRespaldoJSON = () => { const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); };
+window.restaurarRespaldoJSON = () => { const file = document.getElementById('file-restaurar').files[0]; if (!file) return alert('Selecciona un archivo JSON.'); const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if (data.inventario) localStorage.setItem('inventario_ganadero', JSON.stringify(data.inventario)); if (data.reproduccion) localStorage.setItem('reproduccion_ganadero', JSON.stringify(data.reproduccion)); if (data.pesajes) localStorage.setItem('pesajes_ganadero', JSON.stringify(data.pesajes)); if (data.sanidad) localStorage.setItem('sanidad_ganadero', JSON.stringify(data.sanidad)); if (data.medicamentos) localStorage.setItem('medicamentos_ganadero', JSON.stringify(data.medicamentos)); if (data.finanzas) localStorage.setItem('finanzas_ganadero', JSON.stringify(data.finanzas)); alert('✅ Datos restaurados con éxito.'); location.reload(); } catch (err) { alert('❌ Archivo inválido.'); } }; reader.readAsText(file); };
 
-window.descargarRespaldoJSON = () => { 
-  const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas }; 
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); 
-  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); 
-  link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); 
-};
-
-// Inicialización al cargar la página
+// Inicialización
 document.addEventListener('DOMContentLoaded', () => {
-  cargarDatosNube();
+  actualizarEtapasFisiologicas();
+  actualizarTodo();
 });

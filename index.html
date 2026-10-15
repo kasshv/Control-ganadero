@@ -95,7 +95,12 @@
           </div>
           <div class="form-group">
             <label for="propietario">Propietario / Rancho:</label>
-            <input type="text" id="propietario" placeholder="Ej. Rancho San José">
+            <input type="text" id="propietario" list="lista-propietarios" placeholder="Ej. Lupe Mendez, Jacobo, Kassandra">
+            <datalist id="lista-propietarios">
+              <option value="Lupe Mendez">
+              <option value="Jacobo">
+              <option value="Kassandra">
+            </datalist>
           </div>
           <div class="form-group">
             <label for="procedencia">Procedencia:</label>
@@ -115,7 +120,7 @@
 
     <!-- 2. REPRODUCCIÓN Y GESTACIÓN -->
     <div class="card">
-      <h2>❤️ Gestión Reproductiva (Empadres y Gestación)</h2>
+      <h2>❤️ Gestión Reproductiva (Empadres, Palpación y Gestación)</h2>
       <form id="form-reproduccion">
         <div class="form-grid">
           <div class="form-group">
@@ -123,26 +128,27 @@
             <input type="text" id="arete-repro" required placeholder="Ej. MX-10293">
           </div>
           <div class="form-group">
-            <label for="tipo-servicio">Tipo de Servicio (*):</label>
+            <label for="tipo-servicio">Tipo de Evento / Servicio (*):</label>
             <select id="tipo-servicio" required>
               <option value="Monta Natural">Monta Natural</option>
               <option value="Inseminación Artificial">Inseminación Artificial (IA)</option>
               <option value="Transferencia de Embrión">Transferencia de Embrión</option>
+              <option value="Palpación">Palpación (Diagnóstico)</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="semental-repro">Semental / Toro / Pajuela:</label>
-            <input type="text" id="semental-repro" placeholder="Ej. Toro Sultán / Pajuela Angus-01">
+            <label for="semental-repro">Semental / Toro / Observaciones:</label>
+            <input type="text" id="semental-repro" placeholder="Ej. Toro Sultán / Diagnóstico por palpación rectal">
           </div>
           <div class="form-group">
-            <label for="fecha-servicio">Fecha de Servicio (*):</label>
+            <label for="fecha-servicio">Fecha de Servicio o Palpación (*):</label>
             <input type="date" id="fecha-servicio" required>
           </div>
           <div class="form-group">
             <label for="estado-repro">Diagnóstico de Gestación (*):</label>
             <select id="estado-repro" required>
               <option value="Pendiente">Pendiente de Diagnóstico</option>
-              <option value="Preñada">Preñada (Positiva)</option>
+              <option value="Preñada">Preñada (Positiva por Palpación/Revisión)</option>
               <option value="Vacía">Vacía (Negativa)</option>
             </select>
           </div>
@@ -355,13 +361,23 @@
   <div id="vista-inventario" class="vista-contenido" style="display: none;">
     <div class="card">
       <h2>📋 Inventario Completo del Hato (<span id="total-cabezas">0</span> cabezas)</h2>
+      
+      <!-- SUBAPARTADO DE BOTONES POR PROPIETARIO -->
+      <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <span style="font-weight: bold; font-size: 13px; color: #334155; margin-right: 5px;">👤 Propietarios:</span>
+        <button onclick="filtrarPorPropietario('todos')" style="background: #2c3e50; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Todos</button>
+        <button onclick="filtrarPorPropietario('Lupe Mendez')" style="background: #27ae60; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Lupe Mendez</button>
+        <button onclick="filtrarPorPropietario('Jacobo')" style="background: #2980b9; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Jacobo</button>
+        <button onclick="filtrarPorPropietario('Kassandra')" style="background: #8e44ad; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Kassandra</button>
+      </div>
+
       <div class="form-group" style="margin-bottom: 15px;">
         <label for="buscar-arete">Buscar en Inventario:</label>
         <input type="text" id="buscar-arete" placeholder="Buscar por Arete, ID Interno, Nombre, Raza...">
       </div>
       <div class="tabla-contenedor">
         <table>
-          <thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Categoría</th><th>Raza</th><th>Edad</th><th>Madre</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Categoría</th><th>Raza</th><th>Propietario</th><th>Edad</th><th>Acciones</th></tr></thead>
           <tbody id="tabla-inventario"></tbody>
         </table>
       </div>
@@ -386,7 +402,7 @@
       </div>
       <div class="tabla-contenedor">
         <table>
-          <thead><tr><th>Arete Hembra</th><th>Tipo Servicio</th><th>Semental</th><th>Fecha Servicio</th><th>Estado</th><th>Probable Parto</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Arete Hembra</th><th>Tipo Evento</th><th>Semental / Detalle</th><th>Fecha Servicio/Palpación</th><th>Estado</th><th>Probable Parto</th><th>Acciones</th></tr></thead>
           <tbody id="tabla-reproduccion"></tbody>
         </table>
       </div>
@@ -462,7 +478,7 @@
     </div>
   </div>
 
-  <!-- VENTANA MODAL -->
+  <!-- VENTANA MODAL HISTORIAL -->
   <div id="modal-historial" class="modal-oculto">
     <div class="modal-contenido">
       <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
@@ -472,10 +488,45 @@
       <div class="tabla-contenedor" style="margin-bottom: 20px;">
         <table><thead><tr><th>Arete Cría</th><th>Nombre</th><th>Sexo</th><th>Fecha de Nacimiento</th><th>Edad Actual</th></tr></thead><tbody id="modal-tabla-crias"></tbody></table>
       </div>
-      <h3 style="border-bottom: 2px solid #2980b9; padding-bottom: 5px; color: #2980b9;">❤️ Historial Reproductivo</h3>
+      <h3 style="border-bottom: 2px solid #2980b9; padding-bottom: 5px; color: #2980b9;">❤️ Historial Reproductivo y Palpaciones</h3>
       <div class="tabla-contenedor">
-        <table><thead><tr><th>Fecha de Servicio</th><th>Tipo</th><th>Semental</th><th>Estado</th><th>Probable Parto</th></tr></thead><tbody id="modal-tabla-repro"></tbody></table>
+        <table><thead><tr><th>Fecha</th><th>Tipo Evento</th><th>Detalle / Semental</th><th>Estado</th><th>Probable Parto</th></tr></thead><tbody id="modal-tabla-repro"></tbody></table>
       </div>
+    </div>
+  </div>
+
+  <!-- VENTANA MODAL BAJAS -->
+  <div id="modal-baja" class="modal-oculto">
+    <div class="modal-contenido" style="max-width: 450px;">
+      <span class="cerrar-modal" onclick="cerrarModalBaja()">&times;</span>
+      <h2 style="margin-top: 0; color: #c0392b;">⚠️ Registrar Baja de Animal</h2>
+      <p id="baja-info-animal" style="font-weight: bold; color: #333;"></p>
+      
+      <form id="form-registrar-baja">
+        <input type="hidden" id="baja-arete-animal" value="">
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="motivo-baja">Motivo de la Baja (*):</label>
+          <select id="motivo-baja" required onchange="cambiarMotivoBaja(this.value)">
+            <option value="Venta">Venta</option>
+            <option value="Muerte">Muerte / Deceso</option>
+            <option value="Extravío">Extravío / Robo</option>
+            <option value="Otro">Otro motivo</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;" id="grupo-precio-venta">
+          <label for="precio-baja">Precio de Venta ($):</label>
+          <input type="number" id="precio-baja" step="0.01" placeholder="Ej. 18000.00">
+        </div>
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label for="fecha-baja">Fecha de Baja (*):</label>
+          <input type="date" id="fecha-baja" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label for="detalle-baja">Observaciones / Destino:</label>
+          <input type="text" id="detalle-baja" placeholder="Ej. Comprador local / Causa de enfermedad">
+        </div>
+        <button type="submit" style="background-color: #c0392b; color: white; padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%;">Confirmar Baja</button>
+      </form>
     </div>
   </div>
 

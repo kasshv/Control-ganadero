@@ -7,6 +7,7 @@ let pesajes = JSON.parse(localStorage.getItem('pesajes_ganadero')) || [];
 let sanidad = JSON.parse(localStorage.getItem('sanidad_ganadero')) || [];
 let medicamentos = JSON.parse(localStorage.getItem('medicamentos_ganadero')) || [];
 let finanzas = JSON.parse(localStorage.getItem('finanzas_ganadero')) || [];
+let bajas = JSON.parse(localStorage.getItem('bajas_ganadero')) || [];
 let nombreRancho = localStorage.getItem('nombre_rancho_ganadero') || 'Rancho San José';
 
 let chartInventarioInstance = null;
@@ -18,6 +19,7 @@ const formSanidad = document.getElementById('form-sanidad');
 const formPeso = document.getElementById('form-peso');
 const formMedicamento = document.getElementById('form-medicamento');
 const formFinanzas = document.getElementById('form-finanzas');
+const formRegistrarBaja = document.getElementById('form-registrar-baja');
 
 // Tablas
 const tablaInventario = document.getElementById('tabla-inventario');
@@ -178,7 +180,7 @@ window.verHistorial = function(arete) {
   if (!animal) return;
   document.getElementById('modal-titulo-animal').innerHTML = `🐄 Expediente de: <strong>#${animal.arete}</strong> ${animal.nombre ? ' (' + animal.nombre + ')' : ''}`;
   const celdaFoto = animal.foto ? `<img src="${animal.foto}" style="width:110px; height:110px; object-fit:cover; border-radius:8px; border:2px solid #ccc;">` : `<div style="width:110px; height:110px; background:#eee; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#999;">Sin Foto</div>`;
-  document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Raza:</strong> ${animal.raza || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
+  document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Raza:</strong> ${animal.raza || '-'}</p><p style="margin:4px 0;"><strong>Propietario:</strong> ${animal.propietario || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
 
   const crias = inventario.filter(a => a.madre === arete);
   const tbodyCrias = document.getElementById('modal-tabla-crias');
@@ -203,33 +205,77 @@ function verificarAlertasTotales() {
   if (!lista || !cont) return;
   lista.innerHTML = '';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
+  let alertasCompletadas = JSON.parse(localStorage.getItem('alertas_completadas_ganadero')) || [];
   const alertas = [];
 
   inventario.forEach(a => {
     if (a.fechaNacimiento) {
       const m = (hoy - new Date(a.fechaNacimiento + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.416);
-      if (m >= 7 && m < 8) alertas.push(`<li>🌾 <strong>Aviso de Destete:</strong> Animal #${a.arete} tiene ${m.toFixed(1)} meses.</li>`);
+      if (m >= 7 && m < 8) {
+        let idAlerta = `destete-${a.arete}`;
+        if (!alertasCompletadas.includes(idAlerta)) {
+          alertas.push({ id: idAlerta, texto: `🌾 <strong>Aviso de Destete:</strong> Animal #${a.arete} tiene ${m.toFixed(1)} meses.` });
+        }
+      }
     }
   });
+
   reproduccion.forEach(reg => {
     if (reg.estado === 'Preñada' && reg.fechaProbableParto) {
       const d = Math.ceil((new Date(reg.fechaProbableParto + 'T00:00:00') - hoy) / 86400000);
-      if (d >= 0 && d <= 15) alertas.push(`<li>🍼 <strong>Parto Próximo:</strong> Vaca #${reg.arete} parirá en <strong>${d} días</strong>.</li>`);
+      if (d >= 0 && d <= 15) {
+        let idAlerta = `parto-${reg.id}`;
+        if (!alertasCompletadas.includes(idAlerta)) {
+          alertas.push({ id: idAlerta, texto: `🍼 <strong>Parto Próximo:</strong> Vaca #${reg.arete} parirá en <strong>${d} días</strong>.` });
+        }
+      }
     }
   });
+
   sanidad.forEach(reg => {
     if (reg.proximaAplicacion) {
       const d = Math.ceil((new Date(reg.proximaAplicacion + 'T00:00:00') - hoy) / 86400000);
-      if (d <= 15) alertas.push(`<li>💉 <strong>${reg.tipo}:</strong> Animal #${reg.arete} - ${reg.producto} ${d < 0 ? '[Vencida]' : '[En ' + d + ' días]'}</li>`);
+      if (d <= 15) {
+        let idAlerta = `sanidad-${reg.id}`;
+        if (!alertasCompletadas.includes(idAlerta)) {
+          alertas.push({ id: idAlerta, texto: `💉 <strong>${reg.tipo}:</strong> Animal #${reg.arete} - ${reg.producto} ${d < 0 ? '[Vencida]' : '[En ' + d + ' días]'}` });
+        }
+      }
     }
   });
+
   medicamentos.forEach(med => {
-    if (med.existencia <= 2) alertas.push(`<li>📦 <strong>Stock Bajo:</strong> Quedan ${med.existencia} ${med.unidad} de ${med.nombre}</li>`);
+    if (med.existencia <= 2) {
+      let idAlerta = `stock-${med.id}`;
+      if (!alertasCompletadas.includes(idAlerta)) {
+        alertas.push({ id: idAlerta, texto: `📦 <strong>Stock Bajo:</strong> Quedan ${med.existencia} ${med.unidad} de ${med.nombre}` });
+      }
+    }
   });
 
-  if (alertas.length > 0) { lista.innerHTML = alertas.join(''); cont.style.display = 'block'; } 
-  else { cont.style.display = 'none'; }
+  if (alertas.length > 0) {
+    let htmlContenido = '';
+    alertas.forEach(a => {
+      htmlContenido += `<li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-weight: 600; font-size: 13px;">
+        <span>${a.texto}</span>
+        <button onclick="marcarAlertaHecha('${a.id}')" style="background-color: #27ae60; color: white; border: none; padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold; width: auto;">Hecho</button>
+      </li>`;
+    });
+    lista.innerHTML = htmlContenido;
+    cont.style.display = 'block';
+  } else {
+    cont.style.display = 'none';
+  }
 }
+
+window.marcarAlertaHecha = function(idAlerta) {
+  if (confirm('¿Marcar esta actividad como realizada?')) {
+    let completadas = JSON.parse(localStorage.getItem('alertas_completadas_ganadero')) || [];
+    completadas.push(idAlerta);
+    localStorage.setItem('alertas_completadas_ganadero', JSON.stringify(completadas));
+    verificarAlertasTotales();
+  }
+};
 
 function renderizarInventario(lista = inventario) {
   if (!tablaInventario) return;
@@ -239,12 +285,21 @@ function renderizarInventario(lista = inventario) {
       <td>${a.foto ? `<img src="${a.foto}" class="img-miniatura">` : `<div class="sin-foto">Sin foto</div>`}</td>
       <td><strong>${a.arete}</strong></td><td>${a.idInterno || '-'}</td><td>${a.nombre || '-'}</td>
       <td><span class="badge-sexo ${a.sexo === 'Hembra' ? 'sexo-hembra' : 'sexo-macho'}">${a.sexo}</span></td>
-      <td>${a.categoria}</td><td>${a.raza || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td><td><strong>${a.madre || '-'}</strong></td>
-      <td><div class="acciones-grupo"><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button><button class="btn-editar" onclick="cargarAnimalParaEditar('${a.arete}')">Editar</button><button class="btn-danger" onclick="eliminarAnimal('${a.arete}')">Eliminar</button></div></td>
+      <td>${a.categoria}</td><td>${a.raza || '-'}</td><td>${a.propietario || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td>
+      <td><div class="acciones-grupo"><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button><button class="btn-editar" onclick="cargarAnimalParaEditar('${a.arete}')">Editar</button><button class="btn-danger" onclick="eliminarAnimal('${a.arete}')">Baja</button></div></td>
     </tr>`;
   });
   if (totalCabezas) totalCabezas.textContent = inventario.length;
 }
+
+window.filtrarPorPropietario = function(propietario) {
+  if (propietario === 'todos') {
+    renderizarInventario(inventario);
+  } else {
+    const filtrados = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === propietario.toLowerCase());
+    renderizarInventario(filtrados);
+  }
+};
 
 function renderizarHatoPorEstados() {
   const contenedor = document.getElementById('contenedor-grupos-fisiologicos');
@@ -264,13 +319,13 @@ function renderizarHatoPorEstados() {
         <td>${a.foto ? `<img src="${a.foto}" class="img-miniatura">` : `<div class="sin-foto">Sin foto</div>`}</td>
         <td><strong>${a.arete}</strong></td><td>${a.idInterno || '-'}</td><td>${a.nombre || '-'}</td>
         <td><span class="badge-sexo ${a.sexo === 'Hembra' ? 'sexo-hembra' : 'sexo-macho'}">${a.sexo}</span></td>
-        <td>${a.raza || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td>
+        <td>${a.raza || '-'}</td><td>${a.propietario || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td>
         <td><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button></td>
       </tr>`;
     });
     contenedor.innerHTML += `<div style="background:#fafafa; padding:15px; border-radius:8px; margin-bottom:20px; border-left:6px solid #2980b9; border:1px solid #e0e0e0;">
       <h3 style="margin-top:0; display:flex; justify-content:space-between;"><span>🏷️ ${cat}</span><span style="background:#2980b9; color:white; padding:3px 10px; border-radius:12px; font-size:14px;">${grupo.length} Cabezas</span></h3>
-      <div class="tabla-contenedor"><table><thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Raza</th><th>Edad</th><th>Expediente</th></tr></thead><tbody>${filas}</tbody></table></div>
+      <div class="tabla-contenedor"><table><thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Raza</th><th>Propietario</th><th>Edad</th><th>Expediente</th></tr></thead><tbody>${filas}</tbody></table></div>
     </div>`;
   });
 }
@@ -383,8 +438,9 @@ function renderizarReportes() {
   let nac = 0; inventario.forEach(a => { if (a.procedencia && a.procedencia.toLowerCase().includes('nacid')) nac++; });
   if (document.getElementById('kpi-nacimientos')) document.getElementById('kpi-nacimientos').textContent = nac;
 
-  let vent = 0; finanzas.forEach(f => { if (f.categoria.includes('Venta')) vent++; });
-  if (document.getElementById('kpi-ventas')) document.getElementById('kpi-ventas').textContent = vent;
+  let vent = 0; bajas.forEach(b => { if (b.motivo === 'Venta') vent++; });
+  finanzas.forEach(f => { if (f.categoria.includes('Venta') && !bajas.some(b => b.precio === f.monto)) vent++; });
+  if (document.getElementById('kpi-ventas')) document.getElementById('kpi-ventas').textContent = Math.max(vent, bajas.filter(b => b.motivo === 'Venta').length);
 
   if (chartInventarioInstance) chartInventarioInstance.destroy();
   const ctxInv = document.getElementById('graficaInventario');
@@ -415,7 +471,7 @@ function actualizarTodo() {
 // ==========================================
 if (inputBuscar) inputBuscar.addEventListener('input', (e) => {
   const term = e.target.value.toLowerCase().trim();
-  renderizarInventario(inventario.filter(a => a.arete.toLowerCase().includes(term) || (a.nombre && a.nombre.toLowerCase().includes(term)) || (a.raza && a.raza.toLowerCase().includes(term))));
+  renderizarInventario(inventario.filter(a => a.arete.toLowerCase().includes(term) || (a.nombre && a.nombre.toLowerCase().includes(term)) || (a.raza && a.raza.toLowerCase().includes(term)) || (a.propietario && a.propietario.toLowerCase().includes(term))));
 });
 if (inputBuscarRepro) inputBuscarRepro.addEventListener('input', (e) => {
   const term = e.target.value.toLowerCase().trim();
@@ -507,6 +563,77 @@ window.cancelarEdicion = function() {
   document.getElementById('btn-cancelar-edicion').style.display = "none";
 };
 
+// ==========================================
+// 9. GESTIÓN DE BAJAS
+// ==========================================
+window.eliminarAnimal = (arete) => {
+  const animal = inventario.find(a => a.arete === arete);
+  if (!animal) return;
+  
+  document.getElementById('baja-arete-animal').value = arete;
+  document.getElementById('baja-info-animal').textContent = `Animal Arete: #${animal.arete} (${animal.nombre || animal.categoria})`;
+  document.getElementById('fecha-baja').value = new Date().toISOString().split('T')[0];
+  document.getElementById('modal-baja').style.display = 'block';
+};
+
+window.cerrarModalBaja = function() {
+  document.getElementById('modal-baja').style.display = 'none';
+};
+
+window.cambiarMotivoBaja = function(motivo) {
+  const grupoPrecio = document.getElementById('grupo-precio-venta');
+  if (motivo === 'Venta') {
+    grupoPrecio.style.display = 'block';
+  } else {
+    grupoPrecio.style.display = 'none';
+  }
+};
+
+if (formRegistrarBaja) {
+  formRegistrarBaja.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const arete = document.getElementById('baja-arete-animal').value;
+    const motivo = document.getElementById('motivo-baja').value;
+    const precio = parseFloat(document.getElementById('precio-baja').value) || 0;
+    const fecha = document.getElementById('fecha-baja').value;
+    const detalle = document.getElementById('detalle-baja').value.trim();
+
+    const animal = inventario.find(a => a.arete === arete);
+
+    bajas.push({
+      id: Date.now(),
+      arete: arete,
+      categoria: animal ? animal.categoria : 'Desconocida',
+      propietario: animal ? animal.propietario : '',
+      motivo: motivo,
+      precio: precio,
+      fecha: fecha,
+      detalle: detalle
+    });
+    localStorage.setItem('bajas_ganadero', JSON.stringify(bajas));
+
+    if (motivo === 'Venta' && precio > 0) {
+      finanzas.push({
+        id: Date.now() + 1,
+        tipo: 'Ingreso',
+        categoria: 'Venta de animales',
+        monto: precio,
+        fecha: fecha,
+        concepto: `Venta de animal Arete #${arete} (${detalle || 'Sin detalle'})`
+      });
+      localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
+    }
+
+    inventario = inventario.filter(a => a.arete !== arete);
+    localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
+
+    cerrarModalBaja();
+    formRegistrarBaja.reset();
+    actualizarTodo();
+    alert(`✅ Animal dado de baja por motivo de: ${motivo}`);
+  });
+}
+
 if (formRepro) {
   formRepro.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -516,7 +643,7 @@ if (formRepro) {
     localStorage.setItem('reproduccion_ganadero', JSON.stringify(reproduccion));
     formRepro.reset();
     actualizarTodo();
-    alert('✅ Evento reproductivo registrado.');
+    alert('✅ Evento reproductivo / palpación registrado.');
   });
 }
 
@@ -580,17 +707,16 @@ if (formMedicamento) {
   });
 }
 
-// Eliminaciones
-window.eliminarAnimal = (arete) => { if (confirm(`¿Eliminar animal ${arete}?`)) { inventario = inventario.filter(a => a.arete !== arete); localStorage.setItem('inventario_ganadero', JSON.stringify(inventario)); actualizarTodo(); } };
+// Otras eliminaciones
 window.eliminarRepro = (i) => { if (confirm('¿Eliminar registro?')) { reproduccion.splice(i,1); localStorage.setItem('reproduccion_ganadero', JSON.stringify(reproduccion)); actualizarTodo(); } };
 window.eliminarSanidad = (i) => { if (confirm('¿Eliminar registro?')) { sanidad.splice(i,1); localStorage.setItem('sanidad_ganadero', JSON.stringify(sanidad)); actualizarTodo(); } };
 window.eliminarPesaje = (i) => { if (confirm('¿Eliminar pesaje?')) { pesajes.splice(i,1); localStorage.setItem('pesajes_ganadero', JSON.stringify(pesajes)); actualizarTodo(); } };
 window.eliminarFinanza = (i) => { if (confirm('¿Eliminar movimiento?')) { finanzas.splice(i,1); localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas)); actualizarTodo(); } };
 window.eliminarMedicamento = (i) => { if (confirm('¿Eliminar insumo?')) { medicamentos.splice(i,1); localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos)); actualizarTodo(); } };
 
-window.exportarCSV = () => { if (inventario.length === 0) return alert('Inventario vacío.'); let csv = "Arete,Nombre,Sexo,Categoria,Raza\n"; inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''}\n`); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "Inventario_Rancho.csv"; link.click(); };
-window.descargarRespaldoJSON = () => { const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); };
-window.restaurarRespaldoJSON = () => { const file = document.getElementById('file-restaurar').files[0]; if (!file) return alert('Selecciona un archivo JSON.'); const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if (data.inventario) localStorage.setItem('inventario_ganadero', JSON.stringify(data.inventario)); if (data.reproduccion) localStorage.setItem('reproduccion_ganadero', JSON.stringify(data.reproduccion)); if (data.pesajes) localStorage.setItem('pesajes_ganadero', JSON.stringify(data.pesajes)); if (data.sanidad) localStorage.setItem('sanidad_ganadero', JSON.stringify(data.sanidad)); if (data.medicamentos) localStorage.setItem('medicamentos_ganadero', JSON.stringify(data.medicamentos)); if (data.finanzas) localStorage.setItem('finanzas_ganadero', JSON.stringify(data.finanzas)); alert('✅ Datos restaurados con éxito.'); location.reload(); } catch (err) { alert('❌ Archivo inválido.'); } }; reader.readAsText(file); };
+window.exportarCSV = () => { if (inventario.length === 0) return alert('Inventario vacío.'); let csv = "Arete,Nombre,Sexo,Categoria,Raza,Propietario\n"; inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''},${a.propietario||''}\n`); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "Inventario_Rancho.csv"; link.click(); };
+window.descargarRespaldoJSON = () => { const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas, bajas }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); };
+window.restaurarRespaldoJSON = () => { const file = document.getElementById('file-restaurar').files[0]; if (!file) return alert('Selecciona un archivo JSON.'); const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if (data.inventario) localStorage.setItem('inventario_ganadero', JSON.stringify(data.inventario)); if (data.reproduccion) localStorage.setItem('reproduccion_ganadero', JSON.stringify(data.reproduccion)); if (data.pesajes) localStorage.setItem('pesajes_ganadero', JSON.stringify(data.pesajes)); if (data.sanidad) localStorage.setItem('sanidad_ganadero', JSON.stringify(data.sanidad)); if (data.medicamentos) localStorage.setItem('medicamentos_ganadero', JSON.stringify(data.medicamentos)); if (data.finanzas) localStorage.setItem('finanzas_ganadero', JSON.stringify(data.finanzas)); if (data.bajas) localStorage.setItem('bajas_ganadero', JSON.stringify(data.bajas)); alert('✅ Datos restaurados con éxito.'); location.reload(); } catch (err) { alert('❌ Archivo inválido.'); } }; reader.readAsText(file); };
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {

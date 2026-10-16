@@ -8,7 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#27ae60">
+  <meta name="theme-color" content="#2d6a4f">
   <link rel="apple-touch-icon" href="icono-192.png">
 </head>
 <body>
@@ -16,8 +16,8 @@
   <!-- ENCABEZADO CENTRADO CON NOMBRE DEL RANCHO -->
   <div class="header-rancho">
     <h1>Control e Inventario Ganadero</h1>
-    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-      <h2 id="subtitulo-rancho">Rancho San José</h2>
+    <div class="header-rancho-sub">
+      <h2 id="subtitulo-rancho">Rancho San Antonio</h2>
       <button onclick="cambiarNombreRancho()" class="btn-editar-rancho" title="Cambiar nombre del rancho">✏️</button>
     </div>
   </div>
@@ -103,22 +103,65 @@
             </datalist>
           </div>
           <div class="form-group">
-            <label for="procedencia">Procedencia:</label>
-            <input type="text" id="procedencia" placeholder="Ej. Nacido en el rancho, Compra">
+            <label for="procedencia">Procedencia (*):</label>
+            <select id="procedencia" required>
+              <option value="Nacido rancho">Nacido rancho</option>
+              <option value="Compra">Compra</option>
+            </select>
           </div>
           <div class="form-group">
             <label for="foto">Fotografía del Animal:</label>
-            <input type="file" id="foto" accept="image/*">
+            <input type="file" id="foto" accept="image/*" onchange="mostrarVistaPrevia(event)">
+            <div id="contenedor-vista-previa" style="margin-top: 8px; display: none;">
+              <img id="img-vista-previa" src="" alt="Vista previa" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #ccc;">
+            </div>
           </div>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 15px;">
           <button type="submit" id="btn-submit-animal" style="flex: 2; margin-top: 0;">Guardar Animal</button>
-          <button type="button" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="flex: 1; background-color: #7f8c8d; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; display: none;">Cancelar</button>
+          <button type="button" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="flex: 1; background-color: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: none;">Cancelar</button>
         </div>
       </form>
     </div>
 
-    <!-- 2. REPRODUCCIÓN Y GESTACIÓN -->
+    <!-- 2. APARTADO DE NUEVOS PARTOS -->
+    <div class="card">
+      <h2>🍼 Registro de Nuevos Partos</h2>
+      <form id="form-parto">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="parto-madre">Arete de la Madre (Vaca) (*):</label>
+            <input type="text" id="parto-madre" list="lista-madres" required placeholder="Arete de la madre">
+          </div>
+          <div class="form-group">
+            <label for="parto-arete-cria">Arete de la Cría (*):</label>
+            <input type="text" id="parto-arete-cria" required placeholder="Ej. MX-CRIA-01">
+          </div>
+          <div class="form-group">
+            <label for="parto-sexo">Sexo de la Cría (*):</label>
+            <select id="parto-sexo" required>
+              <option value="Hembra">Hembra (Becerra)</option>
+              <option value="Macho">Macho (Becerro)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="parto-nombre">Nombre o Código de la Cría:</label>
+            <input type="text" id="parto-nombre" placeholder="Ej. Lucero / C-50">
+          </div>
+          <div class="form-group">
+            <label for="parto-fecha">Fecha del Parto (*):</label>
+            <input type="date" id="parto-fecha" required>
+          </div>
+          <div class="form-group">
+            <label for="parto-propietario">Propietario (Hereda de la madre o personalizado):</label>
+            <input type="text" id="parto-propietario" placeholder="Se asigna automático si la madre lo tiene">
+          </div>
+        </div>
+        <button type="submit" class="btn-parto" style="margin-top: 15px;">Registrar Parto y Dar de Alta Cría</button>
+      </form>
+    </div>
+
+    <!-- 3. REPRODUCCIÓN Y GESTACIÓN -->
     <div class="card">
       <h2>❤️ Gestión Reproductiva (Empadres, Palpación y Gestación)</h2>
       <form id="form-reproduccion">
@@ -157,7 +200,7 @@
       </form>
     </div>
 
-    <!-- 3. CONTROL SANITARIO -->
+    <!-- 4. CONTROL SANITARIO -->
     <div class="card">
       <h2>💉 Control Sanitario e Historial Veterinario</h2>
       <form id="form-sanidad">
@@ -209,7 +252,7 @@
       </form>
     </div>
 
-    <!-- 4. CONTROL DE PESAJES -->
+    <!-- 5. CONTROL DE PESAJES -->
     <div class="card">
       <h2>⚖️ Control de Pesajes (Peso)</h2>
       <form id="form-peso">
@@ -231,7 +274,7 @@
       </form>
     </div>
 
-    <!-- 5. CONTROL ECONÓMICO -->
+    <!-- 6. CONTROL ECONÓMICO -->
     <div class="card">
       <h2>💰 Control Económico (Finanzas del Rancho)</h2>
       <div class="grid-resumen-finanzas">
@@ -269,7 +312,7 @@
       </form>
     </div>
 
-    <!-- 6. INVENTARIO DE MEDICAMENTOS -->
+    <!-- 7. INVENTARIO DE MEDICAMENTOS -->
     <div class="card">
       <h2>📦 Inventario de Medicamentos y Materiales</h2>
       <form id="form-medicamento">
@@ -307,7 +350,7 @@
       </form>
     </div>
 
-    <!-- 7. REPORTES Y GRÁFICAS -->
+    <!-- 8. REPORTES Y GRÁFICAS -->
     <div class="card">
       <h2>📊 Reportes y Gráficas del Rancho</h2>
       <div class="grid-kpis">
@@ -322,9 +365,9 @@
       </div>
     </div>
 
-    <!-- CUADRÍCULA 3x3 DE BOTONES -->
+    <!-- CUADRÍCULA DE BOTONES (NAVEGACIÓN) -->
     <div class="card" style="text-align: center;">
-      <h3 style="margin-top: 0; margin-bottom: 12px;">🗂️ Historiales y Secciones del Rancho</h3>
+      <h3 style="margin-top: 0; margin-bottom: 12px; color: #1b4332;">🗂️ Historiales y Secciones del Rancho</h3>
       <div style="display: flex; justify-content: center;">
         <div class="contenedor-nav">
           <button id="btn-vista-principal" onclick="cambiarVista('principal')" class="btn-navegacion">⚙️ Operación</button>
@@ -335,21 +378,22 @@
           <button id="btn-vista-pesajes" onclick="cambiarVista('pesajes')" class="btn-navegacion">⚖️ H. Pesajes</button>
           <button id="btn-vista-finanzas" onclick="cambiarVista('finanzas')" class="btn-navegacion">💰 Finanzas</button>
           <button id="btn-vista-medicamentos" onclick="cambiarVista('medicamentos')" class="btn-navegacion">📦 Insumos</button>
-          <button onclick="window.scrollTo({top:0, behavior:'smooth'})" class="btn-navegacion" style="background: #e2e8f0;">⬆️ Arriba</button>
+          <button id="btn-vista-bajas" onclick="cambiarVista('bajas')" class="btn-navegacion" style="background-color: #fee2e2; color: #991b1b;">⚠️ Bajas / Salidas</button>
+          <button onclick="window.scrollTo({top:0, behavior:'smooth'})" class="btn-navegacion" style="background: #e2e8f0; color: #334155;">⬆️ Arriba</button>
         </div>
       </div>
     </div>
 
-    <!-- 8. GESTIÓN DE DATOS Y RESPALDOS -->
+    <!-- 9. GESTIÓN DE DATOS Y RESPALDOS -->
     <div class="card">
       <h2>💾 Gestión de Datos y Respaldos</h2>
       <div class="form-grid" style="margin-top:15px; align-items: end;">
         <div class="form-group"><button onclick="exportarCSV()" class="btn-excel">📊 Exportar Inventario a Excel (CSV)</button></div>
         <div class="form-group"><button onclick="descargarRespaldoJSON()" class="btn-respaldo">⬇️ Descargar Copia de Seguridad (JSON)</button></div>
-        <div class="form-group" style="background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
-          <label for="file-restaurar" style="color:#d35400;">Restaurar Copia de Seguridad:</label>
-          <input type="file" id="file-restaurar" accept=".json">
-          <button onclick="restaurarRespaldoJSON()" style="background-color: #d35400;">⬆️ Restaurar Datos</button>
+        <div class="form-group" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <label for="file-restaurar" style="color:#c2410c; margin-bottom: 6px;">Restaurar Copia de Seguridad:</label>
+          <input type="file" id="file-restaurar" accept=".json" style="margin-bottom: 8px;">
+          <button onclick="restaurarRespaldoJSON()" style="background-color: #ea580c; margin-top: 0;">⬆️ Restaurar Datos</button>
         </div>
       </div>
     </div>
@@ -362,13 +406,13 @@
     <div class="card">
       <h2>📋 Inventario Completo del Hato (<span id="total-cabezas">0</span> cabezas)</h2>
       
-      <!-- SUBAPARTADO DE BOTONES POR PROPIETARIO -->
-      <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+      <!-- SUBAPARTADO DE BOTONES POR PROPIETARIO CON CONTADOR -->
+      <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid #e2e8f0;">
         <span style="font-weight: bold; font-size: 13px; color: #334155; margin-right: 5px;">👤 Propietarios:</span>
-        <button onclick="filtrarPorPropietario('todos')" style="background: #2c3e50; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Todos</button>
-        <button onclick="filtrarPorPropietario('Lupe Mendez')" style="background: #27ae60; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Lupe Mendez</button>
-        <button onclick="filtrarPorPropietario('Jacobo')" style="background: #2980b9; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Jacobo</button>
-        <button onclick="filtrarPorPropietario('Kassandra')" style="background: #8e44ad; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">Kassandra</button>
+        <button id="btn-prop-todos" onclick="filtrarPorPropietario('todos')" style="background: #1b4332; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; width: auto; margin-top: 0;">Todos</button>
+        <button id="btn-prop-lupe" onclick="filtrarPorPropietario('Lupe Mendez')" style="background: #94a3b8; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; width: auto; margin-top: 0;">Lupe Mendez</button>
+        <button id="btn-prop-jacobo" onclick="filtrarPorPropietario('Jacobo')" style="background: #94a3b8; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; width: auto; margin-top: 0;">Jacobo</button>
+        <button id="btn-prop-kassandra" onclick="filtrarPorPropietario('Kassandra')" style="background: #94a3b8; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; width: auto; margin-top: 0;">Kassandra</button>
       </div>
 
       <div class="form-group" style="margin-bottom: 15px;">
@@ -381,7 +425,7 @@
           <tbody id="tabla-inventario"></tbody>
         </table>
       </div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -389,7 +433,7 @@
     <div class="card">
       <h2>🏷️ Hato Agrupado por Estado Fisiológico</h2>
       <div id="contenedor-grupos-fisiologicos"></div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -406,7 +450,7 @@
           <tbody id="tabla-reproduccion"></tbody>
         </table>
       </div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -423,7 +467,7 @@
           <tbody id="tabla-sanidad"></tbody>
         </table>
       </div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -440,7 +484,7 @@
           <tbody id="tabla-pesajes"></tbody>
         </table>
       </div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -457,7 +501,7 @@
           <tbody id="tabla-finanzas"></tbody>
         </table>
       </div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -474,7 +518,27 @@
           <tbody id="tabla-medicamentos"></tbody>
         </table>
       </div>
-      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #7f8c8d; color: white;">← Volver al Menú</button>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <!-- VISTA DE BAJAS Y ESTADÍSTICAS -->
+  <div id="vista-bajas" class="vista-contenido" style="display: none;">
+    <div class="card">
+      <h2>⚠️ Historial de Bajas y Salidas del Hato (<span id="total-bajas">0</span> registros)</h2>
+      
+      <div style="max-width: 400px; margin: 0 auto 25px auto;">
+        <h4 style="text-align: center; color: #991b1b;">Distribución por Causas de Baja</h4>
+        <canvas id="graficaBajas"></canvas>
+      </div>
+
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Arete</th><th>Categoría</th><th>Propietario</th><th>Motivo</th><th>Precio Venta</th><th>Fecha</th><th>Detalle / Destino</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-bajas"></tbody>
+        </table>
+      </div>
+      <button onclick="cambiarVista('principal')" style="margin-top: 15px; width: auto; background: #64748b; color: white;">← Volver al Menú</button>
     </div>
   </div>
 
@@ -482,13 +546,13 @@
   <div id="modal-historial" class="modal-oculto">
     <div class="modal-contenido">
       <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
-      <h2 id="modal-titulo-animal" style="margin-top: 0; color: #2c3e50;">Ficha del Animal</h2>
-      <div id="modal-info-basica" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px;"></div>
-      <h3 style="border-bottom: 2px solid #27ae60; padding-bottom: 5px; color: #27ae60;">🐄 Historial de Partos (Crías Registradas)</h3>
+      <h2 id="modal-titulo-animal" style="margin-top: 0; color: #1b4332;">Ficha del Animal</h2>
+      <div id="modal-info-basica" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;"></div>
+      <h3 style="border-bottom: 2px solid #2d6a4f; padding-bottom: 5px; color: #2d6a4f;">🐄 Historial de Partos (Crías Registradas)</h3>
       <div class="tabla-contenedor" style="margin-bottom: 20px;">
         <table><thead><tr><th>Arete Cría</th><th>Nombre</th><th>Sexo</th><th>Fecha de Nacimiento</th><th>Edad Actual</th></tr></thead><tbody id="modal-tabla-crias"></tbody></table>
       </div>
-      <h3 style="border-bottom: 2px solid #2980b9; padding-bottom: 5px; color: #2980b9;">❤️ Historial Reproductivo y Palpaciones</h3>
+      <h3 style="border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; color: #1e3a8a;">❤️ Historial Reproductivo y Palpaciones</h3>
       <div class="tabla-contenedor">
         <table><thead><tr><th>Fecha</th><th>Tipo Evento</th><th>Detalle / Semental</th><th>Estado</th><th>Probable Parto</th></tr></thead><tbody id="modal-tabla-repro"></tbody></table>
       </div>
@@ -499,7 +563,7 @@
   <div id="modal-baja" class="modal-oculto">
     <div class="modal-contenido" style="max-width: 450px;">
       <span class="cerrar-modal" onclick="cerrarModalBaja()">&times;</span>
-      <h2 style="margin-top: 0; color: #c0392b;">⚠️ Registrar Baja de Animal</h2>
+      <h2 style="margin-top: 0; color: #991b1b;">⚠️ Registrar Baja de Animal</h2>
       <p id="baja-info-animal" style="font-weight: bold; color: #333;"></p>
       
       <form id="form-registrar-baja">
@@ -525,7 +589,7 @@
           <label for="detalle-baja">Observaciones / Destino:</label>
           <input type="text" id="detalle-baja" placeholder="Ej. Comprador local / Causa de enfermedad">
         </div>
-        <button type="submit" style="background-color: #c0392b; color: white; padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%;">Confirmar Baja</button>
+        <button type="submit" style="background-color: #dc2626; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px;">Confirmar Baja</button>
       </form>
     </div>
   </div>

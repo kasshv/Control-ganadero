@@ -11,9 +11,11 @@ let bajas = JSON.parse(localStorage.getItem('bajas_ganadero')) || [];
 let nombreRancho = localStorage.getItem('nombre_rancho_ganadero') || 'Rancho San José';
 
 let chartInventarioInstance = null;
+let chartBajasInstance = null;
 
 // Formularios
 const formAnimal = document.getElementById('form-animal');
+const formParto = document.getElementById('form-parto');
 const formRepro = document.getElementById('form-reproduccion');
 const formSanidad = document.getElementById('form-sanidad');
 const formPeso = document.getElementById('form-peso');
@@ -28,11 +30,13 @@ const tablaSanidad = document.getElementById('tabla-sanidad');
 const tablaPesajes = document.getElementById('tabla-pesajes');
 const tablaMedicamentos = document.getElementById('tabla-medicamentos');
 const tablaFinanzas = document.getElementById('tabla-finanzas');
+const tablaBajas = document.getElementById('tabla-bajas');
 
 const totalCabezas = document.getElementById('total-cabezas');
 const totalSanidad = document.getElementById('total-sanidad');
 const totalPesajesHistorial = document.getElementById('total-pesajes-historial');
 const totalFinanzas = document.getElementById('total-finanzas');
+const totalBajas = document.getElementById('total-bajas');
 
 const resumenIngresos = document.getElementById('resumen-ingresos');
 const resumenEgresos = document.getElementById('resumen-egresos');
@@ -59,6 +63,7 @@ const datalistMadres = document.getElementById('lista-madres');
 // Fechas predeterminadas
 const hoyISO = new Date().toISOString().split('T')[0];
 if (document.getElementById('fecha-servicio')) document.getElementById('fecha-servicio').value = hoyISO;
+if (document.getElementById('parto-fecha')) document.getElementById('parto-fecha').value = hoyISO;
 if (inputFechaPeso) inputFechaPeso.value = hoyISO;
 if (inputFechaSanidad) inputFechaSanidad.value = hoyISO;
 if (inputFechaMedEntrada) inputFechaMedEntrada.value = hoyISO;
@@ -93,7 +98,7 @@ window.cambiarNombreRancho = function() {
 // 3. SISTEMA DE VISTAS (PESTAÑAS)
 // ==========================================
 window.cambiarVista = function(vista) {
-  const vistas = ['principal', 'inventario', 'estados', 'reproduccion', 'sanidad', 'pesajes', 'finanzas', 'medicamentos'];
+  const vistas = ['principal', 'inventario', 'estados', 'reproduccion', 'sanidad', 'pesajes', 'finanzas', 'medicamentos', 'bajas'];
   vistas.forEach(v => {
     const el = document.getElementById(`vista-${v}`);
     if (el) el.style.display = (v === vista) ? 'block' : 'none';
@@ -106,6 +111,7 @@ window.cambiarVista = function(vista) {
   if (vista === 'pesajes') renderizarPesajes();
   if (vista === 'finanzas') renderizarFinanzas();
   if (vista === 'medicamentos') renderizarMedicamentos();
+  if (vista === 'bajas') renderizarBajas();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -169,10 +175,31 @@ function obtenerBase64(file) {
 function actualizarListaMadres() {
   if (!datalistMadres) return;
   datalistMadres.innerHTML = '';
-  inventario.filter(a => a.sexo === 'Hembra').forEach(h => {
+  // Ordenar madres alfabéticamente por arete de menor a mayor
+  const madresOrdenadas = [...inventario.filter(a => a.sexo === 'Hembra')].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+  madresOrdenadas.forEach(h => {
     datalistMadres.innerHTML += `<option value="${h.arete}">${h.nombre || 'Sin nombre'} (${h.categoria})</option>`;
   });
 }
+
+// Vista previa de foto en formulario
+window.mostrarVistaPrevia = function(event) {
+  const archivo = event.target.files[0];
+  const contenedor = document.getElementById('contenedor-vista-previa');
+  const imagenPrevia = document.getElementById('img-vista-previa');
+
+  if (archivo) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      imagenPrevia.src = e.target.result;
+      contenedor.style.display = 'block';
+    }
+    reader.readAsDataURL(archivo);
+  } else {
+    imagenPrevia.src = '';
+    contenedor.style.display = 'none';
+  }
+};
 
 // Modal Expediente Vaca
 window.verHistorial = function(arete) {
@@ -182,12 +209,12 @@ window.verHistorial = function(arete) {
   const celdaFoto = animal.foto ? `<img src="${animal.foto}" style="width:110px; height:110px; object-fit:cover; border-radius:8px; border:2px solid #ccc;">` : `<div style="width:110px; height:110px; background:#eee; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#999;">Sin Foto</div>`;
   document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Raza:</strong> ${animal.raza || '-'}</p><p style="margin:4px 0;"><strong>Propietario:</strong> ${animal.propietario || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
 
-  const crias = inventario.filter(a => a.madre === arete);
+  const crias = inventario.filter(a => a.madre === arete).sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
   const tbodyCrias = document.getElementById('modal-tabla-crias');
   tbodyCrias.innerHTML = crias.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">Sin crías registradas.</td></tr>` : '';
   crias.forEach(c => tbodyCrias.innerHTML += `<tr><td><strong>${c.arete}</strong></td><td>${c.nombre || '-'}</td><td>${c.sexo}</td><td>${formatearFecha(c.fechaNacimiento)}</td><td>${calcularEdad(c.fechaNacimiento)}</td></tr>`);
 
-  const repros = reproduccion.filter(r => r.arete === arete);
+  const repros = reproduccion.filter(r => r.arete === arete).sort((a,b) => new Date(a.fechaServicio) - new Date(b.fechaServicio));
   const tbodyRepro = document.getElementById('modal-tabla-repro');
   tbodyRepro.innerHTML = repros.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">Sin registros reproductivos.</td></tr>` : '';
   repros.forEach(r => tbodyRepro.innerHTML += `<tr><td>${formatearFecha(r.fechaServicio)}</td><td>${r.tipo}</td><td>${r.semental || '-'}</td><td><span class="badge-estado ${r.estado === 'Preñada' ? 'estado-prenada' : 'estado-vacia'}">${r.estado}</span></td><td>${r.estado === 'Preñada' ? formatearFecha(r.fechaProbableParto) : '-'}</td></tr>`);
@@ -197,7 +224,7 @@ window.verHistorial = function(arete) {
 window.cerrarModal = function() { document.getElementById('modal-historial').style.display = 'none'; };
 
 // ==========================================
-// 6. RENDERIZADO DE TABLAS Y ALERTAS
+// 6. RENDERIZADO DE TABLAS Y ALERTAS (ORDENADAS DE MENOR A MAYOR)
 // ==========================================
 function verificarAlertasTotales() {
   const lista = document.getElementById('lista-alertas');
@@ -279,8 +306,12 @@ window.marcarAlertaHecha = function(idAlerta) {
 
 function renderizarInventario(lista = inventario) {
   if (!tablaInventario) return;
-  tablaInventario.innerHTML = lista.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:#777;">No hay animales registrados.</td></tr>` : '';
-  lista.forEach(a => {
+  
+  // ORDENAR DE MENOR A MAYOR POR ARETE OFICIAL
+  const listaOrdenada = [...lista].sort((a, b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+
+  tablaInventario.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:#777;">No hay animales registrados.</td></tr>` : '';
+  listaOrdenada.forEach(a => {
     tablaInventario.innerHTML += `<tr>
       <td>${a.foto ? `<img src="${a.foto}" class="img-miniatura">` : `<div class="sin-foto">Sin foto</div>`}</td>
       <td><strong>${a.arete}</strong></td><td>${a.idInterno || '-'}</td><td>${a.nombre || '-'}</td>
@@ -292,7 +323,41 @@ function renderizarInventario(lista = inventario) {
   if (totalCabezas) totalCabezas.textContent = inventario.length;
 }
 
+// Actualizar contadores y colores activos en los botones de propietarios
+function actualizarContadoresPropietarios(propietarioActivo = 'todos') {
+  const totalTodos = inventario.length;
+  const totalLupe = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === 'lupe mendez').length;
+  const totalJacobo = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === 'jacobo').length;
+  const totalKassandra = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === 'kassandra').length;
+
+  document.getElementById('btn-prop-todos').textContent = `Todos (${totalTodos})`;
+  document.getElementById('btn-prop-lupe').textContent = `Lupe Mendez (${totalLupe})`;
+  document.getElementById('btn-prop-jacobo').textContent = `Jacobo (${totalJacobo})`;
+  document.getElementById('btn-prop-kassandra').textContent = `Kassandra (${totalKassandra})`;
+
+  const botones = {
+    'todos': 'btn-prop-todos',
+    'lupe mendez': 'btn-prop-lupe',
+    'jacobo': 'btn-prop-jacobo',
+    'kassandra': 'btn-prop-kassandra'
+  };
+
+  for (let key in botones) {
+    const el = document.getElementById(botones[key]);
+    if (el) {
+      if (key === propietarioActivo.toLowerCase()) {
+        el.style.background = '#27ae60';
+        el.style.boxShadow = '0 0 5px rgba(0,0,0,0.3)';
+      } else {
+        el.style.background = '#95a5a6';
+        el.style.boxShadow = 'none';
+      }
+    }
+  }
+}
+
 window.filtrarPorPropietario = function(propietario) {
+  actualizarContadoresPropietarios(propietario);
   if (propietario === 'todos') {
     renderizarInventario(inventario);
   } else {
@@ -311,7 +376,8 @@ function renderizarHatoPorEstados() {
   contenedor.innerHTML = '';
 
   todas.forEach(cat => {
-    const grupo = inventario.filter(a => a.categoria === cat);
+    // Ordenar grupo de menor a mayor por arete
+    const grupo = inventario.filter(a => a.categoria === cat).sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
     if (grupo.length === 0) return;
     let filas = '';
     grupo.forEach(a => {
@@ -332,8 +398,10 @@ function renderizarHatoPorEstados() {
 
 function renderizarReproduccion(lista = reproduccion) {
   if (!tablaRepro) return;
-  tablaRepro.innerHTML = lista.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros reproductivos.</td></tr>` : '';
-  [...lista].sort((a,b) => new Date(b.fechaServicio) - new Date(a.fechaServicio)).forEach(reg => {
+  // Ordenar de menor a mayor por arete de hembra
+  const listaOrdenada = [...lista].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+  tablaRepro.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros reproductivos.</td></tr>` : '';
+  listaOrdenada.forEach(reg => {
     const idx = reproduccion.findIndex(r => r.id === reg.id);
     const badge = reg.estado === 'Preñada' ? 'estado-prenada' : (reg.estado === 'Vacía' ? 'estado-vacia' : 'estado-pendiente');
     tablaRepro.innerHTML += `<tr>
@@ -348,8 +416,10 @@ function renderizarReproduccion(lista = reproduccion) {
 
 function renderizarSanidad(lista = sanidad) {
   if (!tablaSanidad) return;
-  tablaSanidad.innerHTML = lista.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros sanitarios.</td></tr>` : '';
-  [...lista].sort((a,b) => new Date(b.fechaAplicacion) - new Date(a.fechaAplicacion)).forEach(reg => {
+  // Ordenar de menor a mayor por arete
+  const listaOrdenada = [...lista].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+  tablaSanidad.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros sanitarios.</td></tr>` : '';
+  listaOrdenada.forEach(reg => {
     const idx = sanidad.findIndex(s => s.id === reg.id);
     tablaSanidad.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${reg.tipo}</td><td>${reg.producto}</td><td>${reg.dosis || '-'}</td>
@@ -362,10 +432,12 @@ function renderizarSanidad(lista = sanidad) {
 
 function renderizarPesajes(lista = pesajes) {
   if (!tablaPesajes) return;
-  tablaPesajes.innerHTML = lista.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">No hay pesajes registrados.</td></tr>` : '';
+  // Ordenar de menor a mayor por arete
+  const listaOrdenada = [...lista].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+  tablaPesajes.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">No hay pesajes registrados.</td></tr>` : '';
   
   let calc = []; let porArete = {};
-  [...pesajes].sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).forEach(reg => {
+  [...listaOrdenada].sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).forEach(reg => {
     let gdp = '-';
     if (porArete[reg.arete]) {
       let ant = porArete[reg.arete];
@@ -376,10 +448,10 @@ function renderizarPesajes(lista = pesajes) {
     calc.push({...reg, gdp});
   });
 
-  const ids = lista.map(p => p.id);
+  const ids = listaOrdenada.map(p => p.id);
   calc = calc.filter(p => ids.includes(p.id));
 
-  calc.sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(reg => {
+  calc.sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true})).forEach(reg => {
     const idx = pesajes.findIndex(p => p.id === reg.id);
     const gdpBadge = reg.gdp !== '-' ? `<span class="badge-gdp">${reg.gdp > 0 ? '+' + reg.gdp : reg.gdp}</span>` : '-';
     tablaPesajes.innerHTML += `<tr>
@@ -393,7 +465,9 @@ function renderizarPesajes(lista = pesajes) {
 
 function renderizarFinanzas(lista = finanzas) {
   if (!tablaFinanzas) return;
-  tablaFinanzas.innerHTML = lista.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay movimientos económicos.</td></tr>` : '';
+  // Ordenar finanzas de menor a mayor por fecha (antiguas a recientes)
+  const listaOrdenada = [...lista].sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+  tablaFinanzas.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay movimientos económicos.</td></tr>` : '';
   let totIng = 0, totEg = 0;
 
   finanzas.forEach(m => { if (m.tipo === 'Ingreso') totIng += m.monto; else totEg += m.monto; });
@@ -401,7 +475,7 @@ function renderizarFinanzas(lista = finanzas) {
   if (resumenEgresos) resumenEgresos.textContent = formatearMoneda(totEg);
   if (resumenUtilidad) resumenUtilidad.textContent = formatearMoneda(totIng - totEg);
 
-  [...lista].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(mov => {
+  listaOrdenada.forEach(mov => {
     const idx = finanzas.findIndex(f => f.id === mov.id);
     const esIng = mov.tipo === 'Ingreso';
     tablaFinanzas.innerHTML += `<tr>
@@ -416,14 +490,16 @@ function renderizarFinanzas(lista = finanzas) {
 
 function renderizarMedicamentos(lista = medicamentos) {
   if (!tablaMedicamentos) return;
-  tablaMedicamentos.innerHTML = lista.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay insumos registrados.</td></tr>` : '';
+  // Ordenar medicamentos alfabéticamente de menor a mayor por nombre
+  const listaOrdenada = [...lista].sort((a,b) => a.nombre.localeCompare(b.nombre));
+  tablaMedicamentos.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay insumos registrados.</td></tr>` : '';
   
   if (selectInsumoSanidad) {
     selectInsumoSanidad.innerHTML = '<option value="">-- Sin vincular insumo --</option>';
-    medicamentos.forEach(m => selectInsumoSanidad.innerHTML += `<option value="${m.id}">${m.nombre} (${m.existencia} ${m.unidad})</option>`);
+    listaOrdenada.forEach(m => selectInsumoSanidad.innerHTML += `<option value="${m.id}">${m.nombre} (${m.existencia} ${m.unidad})</option>`);
   }
 
-  lista.forEach(med => {
+  listaOrdenada.forEach(med => {
     const idx = medicamentos.findIndex(m => m.id === med.id);
     tablaMedicamentos.innerHTML += `<tr>
       <td><strong>${med.nombre}</strong></td><td>${med.presentacion}</td>
@@ -434,13 +510,59 @@ function renderizarMedicamentos(lista = medicamentos) {
   });
 }
 
+function renderizarBajas() {
+  if (!tablaBajas) return;
+  // Ordenar de menor a mayor por arete
+  const listaOrdenada = [...bajas].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+  tablaBajas.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="8" style="text-align:center; color:#777;">No hay registros de bajas o salidas.</td></tr>` : '';
+  
+  listaOrdenada.forEach((baja) => {
+    const idx = bajas.findIndex(b => b.id === baja.id);
+    tablaBajas.innerHTML += `<tr>
+      <td><strong>${baja.arete}</strong></td>
+      <td>${baja.categoria}</td>
+      <td>${baja.propietario || '-'}</td>
+      <td><span style="background: #fadbd8; color: #c0392b; padding: 2px 8px; border-radius: 4px; font-weight: bold;">${baja.motivo}</span></td>
+      <td><strong>${baja.motivo === 'Venta' ? formatearMoneda(baja.precio) : '-'}</strong></td>
+      <td>${formatearFecha(baja.fecha)}</td>
+      <td>${baja.detalle || '-'}</td>
+      <td><button class="btn-danger" onclick="eliminarBaja(${idx})">Eliminar</button></td>
+    </tr>`;
+  });
+
+  if (totalBajas) totalBajas.textContent = bajas.length;
+
+  if (chartBajasInstance) chartBajasInstance.destroy();
+  const ctxBajas = document.getElementById('graficaBajas');
+  if (ctxBajas) {
+    const counts = {};
+    bajas.forEach(b => counts[b.motivo] = (counts[b.motivo] || 0) + 1);
+    
+    chartBajasInstance = new Chart(ctxBajas.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(counts),
+        datasets: [{
+          data: Object.values(counts),
+          backgroundColor: ['#27ae60', '#c0392b', '#d35400', '#7f8c8d']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+  }
+}
+
 function renderizarReportes() {
-  let nac = 0; inventario.forEach(a => { if (a.procedencia && a.procedencia.toLowerCase().includes('nacid')) nac++; });
+  let nac = 0; inventario.forEach(a => { if (a.procedencia && a.procedencia.toLowerCase().includes('nacido')) nac++; });
   if (document.getElementById('kpi-nacimientos')) document.getElementById('kpi-nacimientos').textContent = nac;
 
-  let vent = 0; bajas.forEach(b => { if (b.motivo === 'Venta') vent++; });
-  finanzas.forEach(f => { if (f.categoria.includes('Venta') && !bajas.some(b => b.precio === f.monto)) vent++; });
-  if (document.getElementById('kpi-ventas')) document.getElementById('kpi-ventas').textContent = Math.max(vent, bajas.filter(b => b.motivo === 'Venta').length);
+  let vent = bajas.filter(b => b.motivo === 'Venta').length;
+  if (document.getElementById('kpi-ventas')) document.getElementById('kpi-ventas').textContent = vent;
 
   if (chartInventarioInstance) chartInventarioInstance.destroy();
   const ctxInv = document.getElementById('graficaInventario');
@@ -456,12 +578,14 @@ function actualizarTodo() {
   document.getElementById('subtitulo-rancho').textContent = nombreRancho;
   actualizarListaMadres();
   renderizarInventario();
+  actualizarContadoresPropietarios();
   renderizarHatoPorEstados();
   renderizarReproduccion();
   renderizarSanidad();
   renderizarPesajes();
   renderizarFinanzas();
   renderizarMedicamentos();
+  renderizarBajas();
   verificarAlertasTotales();
   renderizarReportes();
 }
@@ -515,7 +639,7 @@ if (formAnimal) {
       fechaNacimiento: document.getElementById('fecha-nacimiento').value,
       madre: document.getElementById('madre').value.trim(),
       propietario: document.getElementById('propietario').value.trim(),
-      procedencia: document.getElementById('procedencia').value.trim(),
+      procedencia: document.getElementById('procedencia').value,
       foto: fotoBase64
     };
 
@@ -529,9 +653,59 @@ if (formAnimal) {
     }
     localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
     formAnimal.reset();
+    document.getElementById('contenedor-vista-previa').style.display = 'none';
     actualizarEtapasFisiologicas();
     actualizarTodo();
     alert('✅ Animal guardado correctamente.');
+  });
+}
+
+// ==========================================
+// REGISTRO DE NUEVOS PARTOS
+// ==========================================
+if (formParto) {
+  formParto.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const areteMadre = document.getElementById('parto-madre').value.trim();
+    const areteCria = document.getElementById('parto-arete-cria').value.trim();
+    const sexoCria = document.getElementById('parto-sexo').value;
+    const nombreCria = document.getElementById('parto-nombre').value.trim();
+    const fechaParto = document.getElementById('parto-fecha').value;
+    
+    if (inventario.some(a => a.arete === areteCria)) {
+      return alert('❌ Ya existe un animal registrado con el arete de cría: ' + areteCria);
+    }
+
+    const vacaMadre = inventario.find(a => a.arete === areteMadre);
+    let propietarioCria = document.getElementById('parto-propietario').value.trim();
+    if (!propietarioCria && vacaMadre) {
+      propietarioCria = vacaMadre.propietario || '';
+    }
+
+    const categoriaCria = sexoCria === 'Hembra' ? 'Becerra' : 'Becerro';
+
+    const criaData = {
+      arete: areteCria,
+      idInterno: '',
+      nombre: nombreCria,
+      sexo: sexoCria,
+      categoria: categoriaCria,
+      raza: vacaMadre ? vacaMadre.raza : '',
+      fechaNacimiento: fechaParto,
+      madre: areteMadre,
+      propietario: propietarioCria,
+      procedencia: 'Nacido rancho',
+      foto: ''
+    };
+
+    inventario.push(criaData);
+    localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
+
+    formParto.reset();
+    document.getElementById('parto-fecha').value = hoyISO;
+    actualizarEtapasFisiologicas();
+    actualizarTodo();
+    alert(`✅ Parto registrado con éxito. Cría #${areteCria} añadida al inventario.`);
   });
 }
 
@@ -548,7 +722,7 @@ window.cargarAnimalParaEditar = function(arete) {
   document.getElementById('fecha-nacimiento').value = animal.fechaNacimiento || '';
   document.getElementById('madre').value = animal.madre || '';
   document.getElementById('propietario').value = animal.propietario || '';
-  document.getElementById('procedencia').value = animal.procedencia || '';
+  document.getElementById('procedencia').value = animal.procedencia || 'Nacido rancho';
   document.getElementById('titulo-form-animal').textContent = `✏️ Editando Animal: #${animal.arete}`;
   document.getElementById('btn-submit-animal').textContent = 'Actualizar Animal';
   document.getElementById('btn-cancelar-edicion').style.display = 'block';
@@ -558,6 +732,7 @@ window.cargarAnimalParaEditar = function(arete) {
 window.cancelarEdicion = function() {
   formAnimal.reset();
   document.getElementById('edit-arete-original').value = "";
+  document.getElementById('contenedor-vista-previa').style.display = 'none';
   document.getElementById('titulo-form-animal').textContent = "🐄 Registrar Nuevo Animal (Inventario del Hato)";
   document.getElementById('btn-submit-animal').textContent = "Guardar Animal";
   document.getElementById('btn-cancelar-edicion').style.display = "none";
@@ -713,6 +888,7 @@ window.eliminarSanidad = (i) => { if (confirm('¿Eliminar registro?')) { sanidad
 window.eliminarPesaje = (i) => { if (confirm('¿Eliminar pesaje?')) { pesajes.splice(i,1); localStorage.setItem('pesajes_ganadero', JSON.stringify(pesajes)); actualizarTodo(); } };
 window.eliminarFinanza = (i) => { if (confirm('¿Eliminar movimiento?')) { finanzas.splice(i,1); localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas)); actualizarTodo(); } };
 window.eliminarMedicamento = (i) => { if (confirm('¿Eliminar insumo?')) { medicamentos.splice(i,1); localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos)); actualizarTodo(); } };
+window.eliminarBaja = (i) => { if (confirm('¿Eliminar este registro de baja?')) { bajas.splice(i, 1); localStorage.setItem('bajas_ganadero', JSON.stringify(bajas)); actualizarTodo(); } };
 
 window.exportarCSV = () => { if (inventario.length === 0) return alert('Inventario vacío.'); let csv = "Arete,Nombre,Sexo,Categoria,Raza,Propietario\n"; inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''},${a.propietario||''}\n`); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "Inventario_Rancho.csv"; link.click(); };
 window.descargarRespaldoJSON = () => { const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas, bajas }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); };

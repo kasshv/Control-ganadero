@@ -1,27 +1,52 @@
 // ==========================================
-// 1. CARGA DE DATOS LOCALES Y NOMBRE DE RANCHO
+// 1. CONFIGURACIÓN DE FIREBASE E INICIALIZACIÓN
 // ==========================================
-let inventario = JSON.parse(localStorage.getItem('inventario_ganadero')) || [];
-let reproduccion = JSON.parse(localStorage.getItem('reproduccion_ganadero')) || [];
-let pesajes = JSON.parse(localStorage.getItem('pesajes_ganadero')) || [];
-let sanidad = JSON.parse(localStorage.getItem('sanidad_ganadero')) || [];
-let medicamentos = JSON.parse(localStorage.getItem('medicamentos_ganadero')) || [];
-let finanzas = JSON.parse(localStorage.getItem('finanzas_ganadero')) || [];
-let bajas = JSON.parse(localStorage.getItem('bajas_ganadero')) || [];
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  deleteDoc, 
+  doc, 
+  updateDoc 
+} from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA62m6rHU794zTT6tiTPquEU7ItSma2qVM",
+  authDomain: "control-ganadero-37389.firebaseapp.com",
+  projectId: "control-ganadero-37389",
+  storageBucket: "control-ganadero-37389.firebasestorage.app",
+  messagingSenderId: "843612477999",
+  appId: "1:843612477999:web:462e0ee54114557ddb04da",
+  measurementId: "G-TY7YCT01DD"
+};
+
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const db = getFirestore(app);
+
+// ==========================================
+// 2. VARIABLES GLOBALES
+// ==========================================
+let inventario = [];
+let reproduccion = [];
+let pesajes = [];
+let sanidad = [];
+let medicamentos = [];
+let finanzas = [];
 let nombreRancho = localStorage.getItem('nombre_rancho_ganadero') || 'Rancho San José';
 
 let chartInventarioInstance = null;
-let chartBajasInstance = null;
 
 // Formularios
 const formAnimal = document.getElementById('form-animal');
-const formParto = document.getElementById('form-parto');
 const formRepro = document.getElementById('form-reproduccion');
 const formSanidad = document.getElementById('form-sanidad');
 const formPeso = document.getElementById('form-peso');
 const formMedicamento = document.getElementById('form-medicamento');
 const formFinanzas = document.getElementById('form-finanzas');
-const formRegistrarBaja = document.getElementById('form-registrar-baja');
 
 // Tablas
 const tablaInventario = document.getElementById('tabla-inventario');
@@ -30,13 +55,11 @@ const tablaSanidad = document.getElementById('tabla-sanidad');
 const tablaPesajes = document.getElementById('tabla-pesajes');
 const tablaMedicamentos = document.getElementById('tabla-medicamentos');
 const tablaFinanzas = document.getElementById('tabla-finanzas');
-const tablaBajas = document.getElementById('tabla-bajas');
 
 const totalCabezas = document.getElementById('total-cabezas');
 const totalSanidad = document.getElementById('total-sanidad');
 const totalPesajesHistorial = document.getElementById('total-pesajes-historial');
 const totalFinanzas = document.getElementById('total-finanzas');
-const totalBajas = document.getElementById('total-bajas');
 
 const resumenIngresos = document.getElementById('resumen-ingresos');
 const resumenEgresos = document.getElementById('resumen-egresos');
@@ -63,7 +86,6 @@ const datalistMadres = document.getElementById('lista-madres');
 // Fechas predeterminadas
 const hoyISO = new Date().toISOString().split('T')[0];
 if (document.getElementById('fecha-servicio')) document.getElementById('fecha-servicio').value = hoyISO;
-if (document.getElementById('parto-fecha')) document.getElementById('parto-fecha').value = hoyISO;
 if (inputFechaPeso) inputFechaPeso.value = hoyISO;
 if (inputFechaSanidad) inputFechaSanidad.value = hoyISO;
 if (inputFechaMedEntrada) inputFechaMedEntrada.value = hoyISO;
@@ -83,7 +105,7 @@ if (selectTipoFinanza) {
 }
 
 // ==========================================
-// 2. FUNCIÓN PARA CAMBIAR NOMBRE DEL RANCHO
+// 3. CAMBIAR NOMBRE DEL RANCHO
 // ==========================================
 window.cambiarNombreRancho = function() {
   const nuevo = prompt("Escribe el nombre de tu rancho:", nombreRancho);
@@ -95,10 +117,10 @@ window.cambiarNombreRancho = function() {
 };
 
 // ==========================================
-// 3. SISTEMA DE VISTAS (PESTAÑAS)
+// 4. SISTEMA DE VISTAS (PESTAÑAS)
 // ==========================================
 window.cambiarVista = function(vista) {
-  const vistas = ['principal', 'inventario', 'estados', 'reproduccion', 'sanidad', 'pesajes', 'finanzas', 'medicamentos', 'bajas'];
+  const vistas = ['principal', 'inventario', 'estados', 'reproduccion', 'sanidad', 'pesajes', 'finanzas', 'medicamentos'];
   vistas.forEach(v => {
     const el = document.getElementById(`vista-${v}`);
     if (el) el.style.display = (v === vista) ? 'block' : 'none';
@@ -111,18 +133,16 @@ window.cambiarVista = function(vista) {
   if (vista === 'pesajes') renderizarPesajes();
   if (vista === 'finanzas') renderizarFinanzas();
   if (vista === 'medicamentos') renderizarMedicamentos();
-  if (vista === 'bajas') renderizarBajas();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 // ==========================================
-// 4. AUTOMATIZACIÓN DE ETAPAS FISIOLÓGICAS
+// 5. AUTOMATIZACIÓN DE ETAPAS FISIOLÓGICAS
 // ==========================================
-function actualizarEtapasFisiologicas() {
-  let cambios = false;
+async function actualizarEtapasFisiologicas() {
   const hoy = new Date();
-  inventario.forEach(animal => {
+  for (let animal of inventario) {
     if (animal.fechaNacimiento) {
       const edadMeses = (hoy - new Date(animal.fechaNacimiento + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.416); 
       let nuevaCat = animal.categoria;
@@ -136,14 +156,15 @@ function actualizarEtapasFisiologicas() {
         else if (edadMeses >= 12 && edadMeses < 24 && ['Becerra', 'Becerra destete'].includes(nuevaCat)) nuevaCat = 'Novillona';
         else if (edadMeses >= 24 && !['Vaca en producción', 'Vaca seca / Vientre', 'Vaquilla'].includes(nuevaCat)) nuevaCat = 'Vaquilla';
       }
-      if (nuevaCat !== animal.categoria) { animal.categoria = nuevaCat; cambios = true; }
+      if (nuevaCat !== animal.categoria && animal.idDoc) {
+        await updateDoc(doc(db, "inventario", animal.idDoc), { categoria: nuevaCat });
+      }
     }
-  });
-  if (cambios) localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
+  }
 }
 
 // ==========================================
-// 5. UTILIDADES Y MODAL
+// 6. UTILIDADES Y MODAL
 // ==========================================
 function formatearFecha(f) {
   if (!f) return '-';
@@ -175,31 +196,10 @@ function obtenerBase64(file) {
 function actualizarListaMadres() {
   if (!datalistMadres) return;
   datalistMadres.innerHTML = '';
-  // Ordenar madres alfabéticamente por arete de menor a mayor
-  const madresOrdenadas = [...inventario.filter(a => a.sexo === 'Hembra')].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
-  madresOrdenadas.forEach(h => {
+  inventario.filter(a => a.sexo === 'Hembra').forEach(h => {
     datalistMadres.innerHTML += `<option value="${h.arete}">${h.nombre || 'Sin nombre'} (${h.categoria})</option>`;
   });
 }
-
-// Vista previa de foto en formulario
-window.mostrarVistaPrevia = function(event) {
-  const archivo = event.target.files[0];
-  const contenedor = document.getElementById('contenedor-vista-previa');
-  const imagenPrevia = document.getElementById('img-vista-previa');
-
-  if (archivo) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      imagenPrevia.src = e.target.result;
-      contenedor.style.display = 'block';
-    }
-    reader.readAsDataURL(archivo);
-  } else {
-    imagenPrevia.src = '';
-    contenedor.style.display = 'none';
-  }
-};
 
 // Modal Expediente Vaca
 window.verHistorial = function(arete) {
@@ -207,14 +207,14 @@ window.verHistorial = function(arete) {
   if (!animal) return;
   document.getElementById('modal-titulo-animal').innerHTML = `🐄 Expediente de: <strong>#${animal.arete}</strong> ${animal.nombre ? ' (' + animal.nombre + ')' : ''}`;
   const celdaFoto = animal.foto ? `<img src="${animal.foto}" style="width:110px; height:110px; object-fit:cover; border-radius:8px; border:2px solid #ccc;">` : `<div style="width:110px; height:110px; background:#eee; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#999;">Sin Foto</div>`;
-  document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Raza:</strong> ${animal.raza || '-'}</p><p style="margin:4px 0;"><strong>Propietario:</strong> ${animal.propietario || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
+  document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Raza:</strong> ${animal.raza || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
 
-  const crias = inventario.filter(a => a.madre === arete).sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+  const crias = inventario.filter(a => a.madre === arete);
   const tbodyCrias = document.getElementById('modal-tabla-crias');
   tbodyCrias.innerHTML = crias.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">Sin crías registradas.</td></tr>` : '';
   crias.forEach(c => tbodyCrias.innerHTML += `<tr><td><strong>${c.arete}</strong></td><td>${c.nombre || '-'}</td><td>${c.sexo}</td><td>${formatearFecha(c.fechaNacimiento)}</td><td>${calcularEdad(c.fechaNacimiento)}</td></tr>`);
 
-  const repros = reproduccion.filter(r => r.arete === arete).sort((a,b) => new Date(a.fechaServicio) - new Date(b.fechaServicio));
+  const repros = reproduccion.filter(r => r.arete === arete);
   const tbodyRepro = document.getElementById('modal-tabla-repro');
   tbodyRepro.innerHTML = repros.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">Sin registros reproductivos.</td></tr>` : '';
   repros.forEach(r => tbodyRepro.innerHTML += `<tr><td>${formatearFecha(r.fechaServicio)}</td><td>${r.tipo}</td><td>${r.semental || '-'}</td><td><span class="badge-estado ${r.estado === 'Preñada' ? 'estado-prenada' : 'estado-vacia'}">${r.estado}</span></td><td>${r.estado === 'Preñada' ? formatearFecha(r.fechaProbableParto) : '-'}</td></tr>`);
@@ -224,7 +224,7 @@ window.verHistorial = function(arete) {
 window.cerrarModal = function() { document.getElementById('modal-historial').style.display = 'none'; };
 
 // ==========================================
-// 6. RENDERIZADO DE TABLAS Y ALERTAS (ORDENADAS DE MENOR A MAYOR)
+// 7. RENDERIZADO DE TABLAS Y ALERTAS
 // ==========================================
 function verificarAlertasTotales() {
   const lista = document.getElementById('lista-alertas');
@@ -232,139 +232,48 @@ function verificarAlertasTotales() {
   if (!lista || !cont) return;
   lista.innerHTML = '';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  let alertasCompletadas = JSON.parse(localStorage.getItem('alertas_completadas_ganadero')) || [];
   const alertas = [];
 
   inventario.forEach(a => {
     if (a.fechaNacimiento) {
       const m = (hoy - new Date(a.fechaNacimiento + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.416);
-      if (m >= 7 && m < 8) {
-        let idAlerta = `destete-${a.arete}`;
-        if (!alertasCompletadas.includes(idAlerta)) {
-          alertas.push({ id: idAlerta, texto: `🌾 <strong>Aviso de Destete:</strong> Animal #${a.arete} tiene ${m.toFixed(1)} meses.` });
-        }
-      }
+      if (m >= 7 && m < 8) alertas.push(`<li>🌾 <strong>Aviso de Destete:</strong> Animal #${a.arete} tiene ${m.toFixed(1)} meses.</li>`);
     }
   });
-
   reproduccion.forEach(reg => {
     if (reg.estado === 'Preñada' && reg.fechaProbableParto) {
       const d = Math.ceil((new Date(reg.fechaProbableParto + 'T00:00:00') - hoy) / 86400000);
-      if (d >= 0 && d <= 15) {
-        let idAlerta = `parto-${reg.id}`;
-        if (!alertasCompletadas.includes(idAlerta)) {
-          alertas.push({ id: idAlerta, texto: `🍼 <strong>Parto Próximo:</strong> Vaca #${reg.arete} parirá en <strong>${d} días</strong>.` });
-        }
-      }
+      if (d >= 0 && d <= 15) alertas.push(`<li>🍼 <strong>Parto Próximo:</strong> Vaca #${reg.arete} parirá en <strong>${d} días</strong>.</li>`);
     }
   });
-
   sanidad.forEach(reg => {
     if (reg.proximaAplicacion) {
       const d = Math.ceil((new Date(reg.proximaAplicacion + 'T00:00:00') - hoy) / 86400000);
-      if (d <= 15) {
-        let idAlerta = `sanidad-${reg.id}`;
-        if (!alertasCompletadas.includes(idAlerta)) {
-          alertas.push({ id: idAlerta, texto: `💉 <strong>${reg.tipo}:</strong> Animal #${reg.arete} - ${reg.producto} ${d < 0 ? '[Vencida]' : '[En ' + d + ' días]'}` });
-        }
-      }
+      if (d <= 15) alertas.push(`<li>💉 <strong>${reg.tipo}:</strong> Animal #${reg.arete} - ${reg.producto} ${d < 0 ? '[Vencida]' : '[En ' + d + ' días]'}</li>`);
     }
   });
-
   medicamentos.forEach(med => {
-    if (med.existencia <= 2) {
-      let idAlerta = `stock-${med.id}`;
-      if (!alertasCompletadas.includes(idAlerta)) {
-        alertas.push({ id: idAlerta, texto: `📦 <strong>Stock Bajo:</strong> Quedan ${med.existencia} ${med.unidad} de ${med.nombre}` });
-      }
-    }
+    if (med.existencia <= 2) alertas.push(`<li>📦 <strong>Stock Bajo:</strong> Quedan ${med.existencia} ${med.unidad} de ${med.nombre}</li>`);
   });
 
-  if (alertas.length > 0) {
-    let htmlContenido = '';
-    alertas.forEach(a => {
-      htmlContenido += `<li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-weight: 600; font-size: 13px;">
-        <span>${a.texto}</span>
-        <button onclick="marcarAlertaHecha('${a.id}')" style="background-color: #27ae60; color: white; border: none; padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold; width: auto;">Hecho</button>
-      </li>`;
-    });
-    lista.innerHTML = htmlContenido;
-    cont.style.display = 'block';
-  } else {
-    cont.style.display = 'none';
-  }
+  if (alertas.length > 0) { lista.innerHTML = alertas.join(''); cont.style.display = 'block'; } 
+  else { cont.style.display = 'none'; }
 }
-
-window.marcarAlertaHecha = function(idAlerta) {
-  if (confirm('¿Marcar esta actividad como realizada?')) {
-    let completadas = JSON.parse(localStorage.getItem('alertas_completadas_ganadero')) || [];
-    completadas.push(idAlerta);
-    localStorage.setItem('alertas_completadas_ganadero', JSON.stringify(completadas));
-    verificarAlertasTotales();
-  }
-};
 
 function renderizarInventario(lista = inventario) {
   if (!tablaInventario) return;
-  
-  // ORDENAR DE MENOR A MAYOR POR ARETE OFICIAL
-  const listaOrdenada = [...lista].sort((a, b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
-
-  tablaInventario.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:#777;">No hay animales registrados.</td></tr>` : '';
-  listaOrdenada.forEach(a => {
+  tablaInventario.innerHTML = lista.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:#777;">No hay animales registrados.</td></tr>` : '';
+  lista.forEach(a => {
     tablaInventario.innerHTML += `<tr>
       <td>${a.foto ? `<img src="${a.foto}" class="img-miniatura">` : `<div class="sin-foto">Sin foto</div>`}</td>
       <td><strong>${a.arete}</strong></td><td>${a.idInterno || '-'}</td><td>${a.nombre || '-'}</td>
       <td><span class="badge-sexo ${a.sexo === 'Hembra' ? 'sexo-hembra' : 'sexo-macho'}">${a.sexo}</span></td>
-      <td>${a.categoria}</td><td>${a.raza || '-'}</td><td>${a.propietario || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td>
-      <td><div class="acciones-grupo"><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button><button class="btn-editar" onclick="cargarAnimalParaEditar('${a.arete}')">Editar</button><button class="btn-danger" onclick="eliminarAnimal('${a.arete}')">Baja</button></div></td>
+      <td>${a.categoria}</td><td>${a.raza || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td><td><strong>${a.madre || '-'}</strong></td>
+      <td><div class="acciones-grupo"><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button><button class="btn-editar" onclick="cargarAnimalParaEditar('${a.idDoc}')">Editar</button><button class="btn-danger" onclick="eliminarAnimal('${a.idDoc}')">Eliminar</button></div></td>
     </tr>`;
   });
   if (totalCabezas) totalCabezas.textContent = inventario.length;
 }
-
-// Actualizar contadores y colores activos en los botones de propietarios
-function actualizarContadoresPropietarios(propietarioActivo = 'todos') {
-  const totalTodos = inventario.length;
-  const totalLupe = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === 'lupe mendez').length;
-  const totalJacobo = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === 'jacobo').length;
-  const totalKassandra = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === 'kassandra').length;
-
-  document.getElementById('btn-prop-todos').textContent = `Todos (${totalTodos})`;
-  document.getElementById('btn-prop-lupe').textContent = `Lupe Mendez (${totalLupe})`;
-  document.getElementById('btn-prop-jacobo').textContent = `Jacobo (${totalJacobo})`;
-  document.getElementById('btn-prop-kassandra').textContent = `Kassandra (${totalKassandra})`;
-
-  const botones = {
-    'todos': 'btn-prop-todos',
-    'lupe mendez': 'btn-prop-lupe',
-    'jacobo': 'btn-prop-jacobo',
-    'kassandra': 'btn-prop-kassandra'
-  };
-
-  for (let key in botones) {
-    const el = document.getElementById(botones[key]);
-    if (el) {
-      if (key === propietarioActivo.toLowerCase()) {
-        el.style.background = '#27ae60';
-        el.style.boxShadow = '0 0 5px rgba(0,0,0,0.3)';
-      } else {
-        el.style.background = '#95a5a6';
-        el.style.boxShadow = 'none';
-      }
-    }
-  }
-}
-
-window.filtrarPorPropietario = function(propietario) {
-  actualizarContadoresPropietarios(propietario);
-  if (propietario === 'todos') {
-    renderizarInventario(inventario);
-  } else {
-    const filtrados = inventario.filter(a => a.propietario && a.propietario.toLowerCase() === propietario.toLowerCase());
-    renderizarInventario(filtrados);
-  }
-};
 
 function renderizarHatoPorEstados() {
   const contenedor = document.getElementById('contenedor-grupos-fisiologicos');
@@ -376,8 +285,7 @@ function renderizarHatoPorEstados() {
   contenedor.innerHTML = '';
 
   todas.forEach(cat => {
-    // Ordenar grupo de menor a mayor por arete
-    const grupo = inventario.filter(a => a.categoria === cat).sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
+    const grupo = inventario.filter(a => a.categoria === cat);
     if (grupo.length === 0) return;
     let filas = '';
     grupo.forEach(a => {
@@ -385,30 +293,27 @@ function renderizarHatoPorEstados() {
         <td>${a.foto ? `<img src="${a.foto}" class="img-miniatura">` : `<div class="sin-foto">Sin foto</div>`}</td>
         <td><strong>${a.arete}</strong></td><td>${a.idInterno || '-'}</td><td>${a.nombre || '-'}</td>
         <td><span class="badge-sexo ${a.sexo === 'Hembra' ? 'sexo-hembra' : 'sexo-macho'}">${a.sexo}</span></td>
-        <td>${a.raza || '-'}</td><td>${a.propietario || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td>
+        <td>${a.raza || '-'}</td><td>${calcularEdad(a.fechaNacimiento)}</td>
         <td><button class="btn-historial" onclick="verHistorial('${a.arete}')">Historial</button></td>
       </tr>`;
     });
     contenedor.innerHTML += `<div style="background:#fafafa; padding:15px; border-radius:8px; margin-bottom:20px; border-left:6px solid #2980b9; border:1px solid #e0e0e0;">
       <h3 style="margin-top:0; display:flex; justify-content:space-between;"><span>🏷️ ${cat}</span><span style="background:#2980b9; color:white; padding:3px 10px; border-radius:12px; font-size:14px;">${grupo.length} Cabezas</span></h3>
-      <div class="tabla-contenedor"><table><thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Raza</th><th>Propietario</th><th>Edad</th><th>Expediente</th></tr></thead><tbody>${filas}</tbody></table></div>
+      <div class="tabla-contenedor"><table><thead><tr><th>Foto</th><th>Arete</th><th>ID Int.</th><th>Nombre</th><th>Sexo</th><th>Raza</th><th>Edad</th><th>Expediente</th></tr></thead><tbody>${filas}</tbody></table></div>
     </div>`;
   });
 }
 
 function renderizarReproduccion(lista = reproduccion) {
   if (!tablaRepro) return;
-  // Ordenar de menor a mayor por arete de hembra
-  const listaOrdenada = [...lista].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
-  tablaRepro.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros reproductivos.</td></tr>` : '';
-  listaOrdenada.forEach(reg => {
-    const idx = reproduccion.findIndex(r => r.id === reg.id);
+  tablaRepro.innerHTML = lista.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros reproductivos.</td></tr>` : '';
+  [...lista].sort((a,b) => new Date(b.fechaServicio) - new Date(a.fechaServicio)).forEach(reg => {
     const badge = reg.estado === 'Preñada' ? 'estado-prenada' : (reg.estado === 'Vacía' ? 'estado-vacia' : 'estado-pendiente');
     tablaRepro.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${reg.tipo}</td><td>${reg.semental || '-'}</td>
       <td>${formatearFecha(reg.fechaServicio)}</td><td><span class="badge-estado ${badge}">${reg.estado}</span></td>
       <td>${reg.estado === 'Preñada' ? `<strong>${formatearFecha(reg.fechaProbableParto)}</strong>` : '-'}</td>
-      <td><button class="btn-danger" onclick="eliminarRepro(${idx})">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarRegistro('reproduccion', '${reg.idDoc}')">Eliminar</button></td>
     </tr>`;
   });
   if (document.getElementById('total-repro')) document.getElementById('total-repro').textContent = reproduccion.length;
@@ -416,15 +321,12 @@ function renderizarReproduccion(lista = reproduccion) {
 
 function renderizarSanidad(lista = sanidad) {
   if (!tablaSanidad) return;
-  // Ordenar de menor a mayor por arete
-  const listaOrdenada = [...lista].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
-  tablaSanidad.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros sanitarios.</td></tr>` : '';
-  listaOrdenada.forEach(reg => {
-    const idx = sanidad.findIndex(s => s.id === reg.id);
+  tablaSanidad.innerHTML = lista.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:#777;">No hay registros sanitarios.</td></tr>` : '';
+  [...lista].sort((a,b) => new Date(b.fechaAplicacion) - new Date(a.fechaAplicacion)).forEach(reg => {
     tablaSanidad.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${reg.tipo}</td><td>${reg.producto}</td><td>${reg.dosis || '-'}</td>
       <td>${formatearFecha(reg.fechaAplicacion)}</td><td><strong>${formatearFecha(reg.proximaAplicacion)}</strong></td>
-      <td><button class="btn-danger" onclick="eliminarSanidad(${idx})">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarRegistro('sanidad', '${reg.idDoc}')">Eliminar</button></td>
     </tr>`;
   });
   if (totalSanidad) totalSanidad.textContent = sanidad.length;
@@ -432,12 +334,10 @@ function renderizarSanidad(lista = sanidad) {
 
 function renderizarPesajes(lista = pesajes) {
   if (!tablaPesajes) return;
-  // Ordenar de menor a mayor por arete
-  const listaOrdenada = [...lista].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
-  tablaPesajes.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">No hay pesajes registrados.</td></tr>` : '';
+  tablaPesajes.innerHTML = lista.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">No hay pesajes registrados.</td></tr>` : '';
   
   let calc = []; let porArete = {};
-  [...listaOrdenada].sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).forEach(reg => {
+  [...pesajes].sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).forEach(reg => {
     let gdp = '-';
     if (porArete[reg.arete]) {
       let ant = porArete[reg.arete];
@@ -448,16 +348,15 @@ function renderizarPesajes(lista = pesajes) {
     calc.push({...reg, gdp});
   });
 
-  const ids = listaOrdenada.map(p => p.id);
-  calc = calc.filter(p => ids.includes(p.id));
+  const ids = lista.map(p => p.idDoc);
+  calc = calc.filter(p => ids.includes(p.idDoc));
 
-  calc.sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true})).forEach(reg => {
-    const idx = pesajes.findIndex(p => p.id === reg.id);
+  calc.sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(reg => {
     const gdpBadge = reg.gdp !== '-' ? `<span class="badge-gdp">${reg.gdp > 0 ? '+' + reg.gdp : reg.gdp}</span>` : '-';
     tablaPesajes.innerHTML += `<tr>
       <td><strong>${reg.arete}</strong></td><td>${formatearFecha(reg.fecha)}</td>
       <td><strong>${reg.peso} kg</strong></td><td>${gdpBadge}</td>
-      <td><button class="btn-danger" onclick="eliminarPesaje(${idx})">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarRegistro('pesajes', '${reg.idDoc}')">Eliminar</button></td>
     </tr>`;
   });
   if (totalPesajesHistorial) totalPesajesHistorial.textContent = pesajes.length;
@@ -465,9 +364,7 @@ function renderizarPesajes(lista = pesajes) {
 
 function renderizarFinanzas(lista = finanzas) {
   if (!tablaFinanzas) return;
-  // Ordenar finanzas de menor a mayor por fecha (antiguas a recientes)
-  const listaOrdenada = [...lista].sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
-  tablaFinanzas.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay movimientos económicos.</td></tr>` : '';
+  tablaFinanzas.innerHTML = lista.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay movimientos económicos.</td></tr>` : '';
   let totIng = 0, totEg = 0;
 
   finanzas.forEach(m => { if (m.tipo === 'Ingreso') totIng += m.monto; else totEg += m.monto; });
@@ -475,14 +372,13 @@ function renderizarFinanzas(lista = finanzas) {
   if (resumenEgresos) resumenEgresos.textContent = formatearMoneda(totEg);
   if (resumenUtilidad) resumenUtilidad.textContent = formatearMoneda(totIng - totEg);
 
-  listaOrdenada.forEach(mov => {
-    const idx = finanzas.findIndex(f => f.id === mov.id);
+  [...lista].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(mov => {
     const esIng = mov.tipo === 'Ingreso';
     tablaFinanzas.innerHTML += `<tr>
       <td><span class="${esIng ? 'badge-ingreso' : 'badge-egreso'}">${mov.tipo}</span></td>
       <td>${mov.categoria}</td><td>${mov.concepto || '-'}</td><td>${formatearFecha(mov.fecha)}</td>
       <td><strong>${formatearMoneda(mov.monto)}</strong></td>
-      <td><button class="btn-danger" onclick="eliminarFinanza(${idx})">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarRegistro('finanzas', '${mov.idDoc}')">Eliminar</button></td>
     </tr>`;
   });
   if (totalFinanzas) totalFinanzas.textContent = finanzas.length;
@@ -490,78 +386,28 @@ function renderizarFinanzas(lista = finanzas) {
 
 function renderizarMedicamentos(lista = medicamentos) {
   if (!tablaMedicamentos) return;
-  // Ordenar medicamentos alfabéticamente de menor a mayor por nombre
-  const listaOrdenada = [...lista].sort((a,b) => a.nombre.localeCompare(b.nombre));
-  tablaMedicamentos.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay insumos registrados.</td></tr>` : '';
+  tablaMedicamentos.innerHTML = lista.length === 0 ? `<tr><td colspan="6" style="text-align:center; color:#777;">No hay insumos registrados.</td></tr>` : '';
   
   if (selectInsumoSanidad) {
     selectInsumoSanidad.innerHTML = '<option value="">-- Sin vincular insumo --</option>';
-    listaOrdenada.forEach(m => selectInsumoSanidad.innerHTML += `<option value="${m.id}">${m.nombre} (${m.existencia} ${m.unidad})</option>`);
+    medicamentos.forEach(m => selectInsumoSanidad.innerHTML += `<option value="${m.idDoc}">${m.nombre} (${m.existencia} ${m.unidad})</option>`);
   }
 
-  listaOrdenada.forEach(med => {
-    const idx = medicamentos.findIndex(m => m.id === med.id);
+  lista.forEach(med => {
     tablaMedicamentos.innerHTML += `<tr>
       <td><strong>${med.nombre}</strong></td><td>${med.presentacion}</td>
       <td><strong>${med.existencia} ${med.unidad}</strong></td><td>${formatearFecha(med.caducidad)}</td>
       <td><span class="badge-ok">Activo</span></td>
-      <td><button class="btn-danger" onclick="eliminarMedicamento(${idx})">Eliminar</button></td>
+      <td><button class="btn-danger" onclick="eliminarRegistro('medicamentos', '${med.idDoc}')">Eliminar</button></td>
     </tr>`;
   });
-}
-
-function renderizarBajas() {
-  if (!tablaBajas) return;
-  // Ordenar de menor a mayor por arete
-  const listaOrdenada = [...bajas].sort((a,b) => a.arete.localeCompare(b.arete, undefined, {numeric: true}));
-  tablaBajas.innerHTML = listaOrdenada.length === 0 ? `<tr><td colspan="8" style="text-align:center; color:#777;">No hay registros de bajas o salidas.</td></tr>` : '';
-  
-  listaOrdenada.forEach((baja) => {
-    const idx = bajas.findIndex(b => b.id === baja.id);
-    tablaBajas.innerHTML += `<tr>
-      <td><strong>${baja.arete}</strong></td>
-      <td>${baja.categoria}</td>
-      <td>${baja.propietario || '-'}</td>
-      <td><span style="background: #fadbd8; color: #c0392b; padding: 2px 8px; border-radius: 4px; font-weight: bold;">${baja.motivo}</span></td>
-      <td><strong>${baja.motivo === 'Venta' ? formatearMoneda(baja.precio) : '-'}</strong></td>
-      <td>${formatearFecha(baja.fecha)}</td>
-      <td>${baja.detalle || '-'}</td>
-      <td><button class="btn-danger" onclick="eliminarBaja(${idx})">Eliminar</button></td>
-    </tr>`;
-  });
-
-  if (totalBajas) totalBajas.textContent = bajas.length;
-
-  if (chartBajasInstance) chartBajasInstance.destroy();
-  const ctxBajas = document.getElementById('graficaBajas');
-  if (ctxBajas) {
-    const counts = {};
-    bajas.forEach(b => counts[b.motivo] = (counts[b.motivo] || 0) + 1);
-    
-    chartBajasInstance = new Chart(ctxBajas.getContext('2d'), {
-      type: 'doughnut',
-      data: {
-        labels: Object.keys(counts),
-        datasets: [{
-          data: Object.values(counts),
-          backgroundColor: ['#27ae60', '#c0392b', '#d35400', '#7f8c8d']
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { position: 'bottom' }
-        }
-      }
-    });
-  }
 }
 
 function renderizarReportes() {
-  let nac = 0; inventario.forEach(a => { if (a.procedencia && a.procedencia.toLowerCase().includes('nacido')) nac++; });
+  let nac = 0; inventario.forEach(a => { if (a.procedencia && a.procedencia.toLowerCase().includes('nacid')) nac++; });
   if (document.getElementById('kpi-nacimientos')) document.getElementById('kpi-nacimientos').textContent = nac;
 
-  let vent = bajas.filter(b => b.motivo === 'Venta').length;
+  let vent = 0; finanzas.forEach(f => { if (f.categoria.includes('Venta')) vent++; });
   if (document.getElementById('kpi-ventas')) document.getElementById('kpi-ventas').textContent = vent;
 
   if (chartInventarioInstance) chartInventarioInstance.destroy();
@@ -578,24 +424,63 @@ function actualizarTodo() {
   document.getElementById('subtitulo-rancho').textContent = nombreRancho;
   actualizarListaMadres();
   renderizarInventario();
-  actualizarContadoresPropietarios();
   renderizarHatoPorEstados();
   renderizarReproduccion();
   renderizarSanidad();
   renderizarPesajes();
   renderizarFinanzas();
   renderizarMedicamentos();
-  renderizarBajas();
   verificarAlertasTotales();
   renderizarReportes();
 }
 
 // ==========================================
-// 7. EVENTOS DE BUSCADORES EN VIVO
+// 8. ESCUCHA EN TIEMPO REAL DESDE FIRESTORE
+// ==========================================
+function iniciarSincronizacionNube() {
+  onSnapshot(collection(db, "inventario"), (snap) => {
+    inventario = [];
+    snap.forEach(d => inventario.push({ idDoc: d.id, ...d.data() }));
+    actualizarEtapasFisiologicas();
+    actualizarTodo();
+  });
+  onSnapshot(collection(db, "reproduccion"), (snap) => {
+    reproduccion = [];
+    snap.forEach(d => reproduccion.push({ idDoc: d.id, ...d.data() }));
+    renderizarReproduccion();
+    verificarAlertasTotales();
+  });
+  onSnapshot(collection(db, "sanidad"), (snap) => {
+    sanidad = [];
+    snap.forEach(d => sanidad.push({ idDoc: d.id, ...d.data() }));
+    renderizarSanidad();
+    verificarAlertasTotales();
+  });
+  onSnapshot(collection(db, "pesajes"), (snap) => {
+    pesajes = [];
+    snap.forEach(d => pesajes.push({ idDoc: d.id, ...d.data() }));
+    renderizarPesajes();
+  });
+  onSnapshot(collection(db, "finanzas"), (snap) => {
+    finanzas = [];
+    snap.forEach(d => finanzas.push({ idDoc: d.id, ...d.data() }));
+    renderizarFinanzas();
+    renderizarReportes();
+  });
+  onSnapshot(collection(db, "medicamentos"), (snap) => {
+    medicamentos = [];
+    snap.forEach(d => medicamentos.push({ idDoc: d.id, ...d.data() }));
+    renderizarMedicamentos();
+    verificarAlertasTotales();
+  });
+}
+
+// ==========================================
+// 9. EVENTOS DE BUSCADORES EN VIVO
 // ==========================================
 if (inputBuscar) inputBuscar.addEventListener('input', (e) => {
   const term = e.target.value.toLowerCase().trim();
-  renderizarInventario(inventario.filter(a => a.arete.toLowerCase().includes(term) || (a.nombre && a.nombre.toLowerCase().includes(term)) || (a.raza && a.raza.toLowerCase().includes(term)) || (a.propietario && a.propietario.toLowerCase().includes(term))));
+  renderizarInventario(inventario.filter(a => a.arete.toLowerCase().includes(term) || (a.nombre && a.nombre.toLowerCase().includes(term)) || (a.raza && a.raza.toLowerCase().includes(term))));
 });
 if (inputBuscarRepro) inputBuscarRepro.addEventListener('input', (e) => {
   const term = e.target.value.toLowerCase().trim();
@@ -619,15 +504,15 @@ if (inputBuscarMeds) inputBuscarMeds.addEventListener('input', (e) => {
 });
 
 // ==========================================
-// 8. ENVÍO DE FORMULARIOS Y ACCIONES
+// 10. ENVÍO DE FORMULARIOS Y ACCIONES EN LA NUBE
 // ==========================================
 if (formAnimal) {
   formAnimal.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const areteOrig = document.getElementById('edit-arete-original').value;
+    const idDoc = document.getElementById('edit-id-doc').value;
     const areteNuevo = document.getElementById('arete').value.trim();
     const fotoFile = document.getElementById('foto').files[0];
-    let fotoBase64 = fotoFile ? await obtenerBase64(fotoFile) : (areteOrig !== "" ? (inventario.find(a => a.arete === areteOrig)?.foto || '') : '');
+    let fotoBase64 = fotoFile ? await obtenerBase64(fotoFile) : (idDoc !== "" ? (inventario.find(a => a.idDoc === idDoc)?.foto || '') : '');
 
     const animalData = {
       arete: areteNuevo,
@@ -639,80 +524,31 @@ if (formAnimal) {
       fechaNacimiento: document.getElementById('fecha-nacimiento').value,
       madre: document.getElementById('madre').value.trim(),
       propietario: document.getElementById('propietario').value.trim(),
-      procedencia: document.getElementById('procedencia').value,
+      procedencia: document.getElementById('procedencia').value.trim(),
       foto: fotoBase64
     };
 
-    if (areteOrig === "") {
-      if (inventario.some(a => a.arete === areteNuevo)) return alert('❌ Ya existe un animal con este arete.');
-      inventario.push(animalData);
-    } else {
-      const idx = inventario.findIndex(a => a.arete === areteOrig);
-      if (idx !== -1) inventario[idx] = animalData;
-      cancelarEdicion();
+    try {
+      if (idDoc === "") {
+        if (inventario.some(a => a.arete === areteNuevo)) return alert('❌ Ya existe un animal con este arete.');
+        await addDoc(collection(db, "inventario"), animalData);
+        alert('✅ Animal registrado en la nube.');
+      } else {
+        await updateDoc(doc(db, "inventario", idDoc), animalData);
+        alert('✅ Animal actualizado en la nube.');
+        cancelarEdicion();
+      }
+      formAnimal.reset();
+    } catch (err) {
+      alert('❌ Error al guardar en la nube: ' + err.message);
     }
-    localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
-    formAnimal.reset();
-    document.getElementById('contenedor-vista-previa').style.display = 'none';
-    actualizarEtapasFisiologicas();
-    actualizarTodo();
-    alert('✅ Animal guardado correctamente.');
   });
 }
 
-// ==========================================
-// REGISTRO DE NUEVOS PARTOS
-// ==========================================
-if (formParto) {
-  formParto.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const areteMadre = document.getElementById('parto-madre').value.trim();
-    const areteCria = document.getElementById('parto-arete-cria').value.trim();
-    const sexoCria = document.getElementById('parto-sexo').value;
-    const nombreCria = document.getElementById('parto-nombre').value.trim();
-    const fechaParto = document.getElementById('parto-fecha').value;
-    
-    if (inventario.some(a => a.arete === areteCria)) {
-      return alert('❌ Ya existe un animal registrado con el arete de cría: ' + areteCria);
-    }
-
-    const vacaMadre = inventario.find(a => a.arete === areteMadre);
-    let propietarioCria = document.getElementById('parto-propietario').value.trim();
-    if (!propietarioCria && vacaMadre) {
-      propietarioCria = vacaMadre.propietario || '';
-    }
-
-    const categoriaCria = sexoCria === 'Hembra' ? 'Becerra' : 'Becerro';
-
-    const criaData = {
-      arete: areteCria,
-      idInterno: '',
-      nombre: nombreCria,
-      sexo: sexoCria,
-      categoria: categoriaCria,
-      raza: vacaMadre ? vacaMadre.raza : '',
-      fechaNacimiento: fechaParto,
-      madre: areteMadre,
-      propietario: propietarioCria,
-      procedencia: 'Nacido rancho',
-      foto: ''
-    };
-
-    inventario.push(criaData);
-    localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
-
-    formParto.reset();
-    document.getElementById('parto-fecha').value = hoyISO;
-    actualizarEtapasFisiologicas();
-    actualizarTodo();
-    alert(`✅ Parto registrado con éxito. Cría #${areteCria} añadida al inventario.`);
-  });
-}
-
-window.cargarAnimalParaEditar = function(arete) {
-  const animal = inventario.find(a => a.arete === arete);
+window.cargarAnimalParaEditar = function(idDoc) {
+  const animal = inventario.find(a => a.idDoc === idDoc);
   if (!animal) return;
-  document.getElementById('edit-arete-original').value = animal.arete;
+  document.getElementById('edit-id-doc').value = animal.idDoc;
   document.getElementById('arete').value = animal.arete;
   document.getElementById('id-interno').value = animal.idInterno || '';
   document.getElementById('nombre').value = animal.nombre || '';
@@ -722,7 +558,7 @@ window.cargarAnimalParaEditar = function(arete) {
   document.getElementById('fecha-nacimiento').value = animal.fechaNacimiento || '';
   document.getElementById('madre').value = animal.madre || '';
   document.getElementById('propietario').value = animal.propietario || '';
-  document.getElementById('procedencia').value = animal.procedencia || 'Nacido rancho';
+  document.getElementById('procedencia').value = animal.procedencia || '';
   document.getElementById('titulo-form-animal').textContent = `✏️ Editando Animal: #${animal.arete}`;
   document.getElementById('btn-submit-animal').textContent = 'Actualizar Animal';
   document.getElementById('btn-cancelar-edicion').style.display = 'block';
@@ -731,171 +567,162 @@ window.cargarAnimalParaEditar = function(arete) {
 
 window.cancelarEdicion = function() {
   formAnimal.reset();
-  document.getElementById('edit-arete-original').value = "";
-  document.getElementById('contenedor-vista-previa').style.display = 'none';
+  document.getElementById('edit-id-doc').value = "";
   document.getElementById('titulo-form-animal').textContent = "🐄 Registrar Nuevo Animal (Inventario del Hato)";
   document.getElementById('btn-submit-animal').textContent = "Guardar Animal";
   document.getElementById('btn-cancelar-edicion').style.display = "none";
 };
 
-// ==========================================
-// 9. GESTIÓN DE BAJAS
-// ==========================================
-window.eliminarAnimal = (arete) => {
-  const animal = inventario.find(a => a.arete === arete);
-  if (!animal) return;
-  
-  document.getElementById('baja-arete-animal').value = arete;
-  document.getElementById('baja-info-animal').textContent = `Animal Arete: #${animal.arete} (${animal.nombre || animal.categoria})`;
-  document.getElementById('fecha-baja').value = new Date().toISOString().split('T')[0];
-  document.getElementById('modal-baja').style.display = 'block';
-};
-
-window.cerrarModalBaja = function() {
-  document.getElementById('modal-baja').style.display = 'none';
-};
-
-window.cambiarMotivoBaja = function(motivo) {
-  const grupoPrecio = document.getElementById('grupo-precio-venta');
-  if (motivo === 'Venta') {
-    grupoPrecio.style.display = 'block';
-  } else {
-    grupoPrecio.style.display = 'none';
-  }
-};
-
-if (formRegistrarBaja) {
-  formRegistrarBaja.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const arete = document.getElementById('baja-arete-animal').value;
-    const motivo = document.getElementById('motivo-baja').value;
-    const precio = parseFloat(document.getElementById('precio-baja').value) || 0;
-    const fecha = document.getElementById('fecha-baja').value;
-    const detalle = document.getElementById('detalle-baja').value.trim();
-
-    const animal = inventario.find(a => a.arete === arete);
-
-    bajas.push({
-      id: Date.now(),
-      arete: arete,
-      categoria: animal ? animal.categoria : 'Desconocida',
-      propietario: animal ? animal.propietario : '',
-      motivo: motivo,
-      precio: precio,
-      fecha: fecha,
-      detalle: detalle
-    });
-    localStorage.setItem('bajas_ganadero', JSON.stringify(bajas));
-
-    if (motivo === 'Venta' && precio > 0) {
-      finanzas.push({
-        id: Date.now() + 1,
-        tipo: 'Ingreso',
-        categoria: 'Venta de animales',
-        monto: precio,
-        fecha: fecha,
-        concepto: `Venta de animal Arete #${arete} (${detalle || 'Sin detalle'})`
-      });
-      localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
-    }
-
-    inventario = inventario.filter(a => a.arete !== arete);
-    localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
-
-    cerrarModalBaja();
-    formRegistrarBaja.reset();
-    actualizarTodo();
-    alert(`✅ Animal dado de baja por motivo de: ${motivo}`);
-  });
-}
-
 if (formRepro) {
-  formRepro.addEventListener('submit', (e) => {
+  formRepro.addEventListener('submit', async (e) => {
     e.preventDefault();
     const est = document.getElementById('estado-repro').value;
     const fServ = document.getElementById('fecha-servicio').value;
-    reproduccion.push({ id: Date.now(), arete: document.getElementById('arete-repro').value.trim(), tipo: document.getElementById('tipo-servicio').value, semental: document.getElementById('semental-repro').value.trim(), fechaServicio: fServ, estado: est, fechaProbableParto: est === 'Preñada' ? new Date(new Date(fServ+'T00:00:00').setDate(new Date(fServ+'T00:00:00').getDate() + 283)).toISOString().split('T')[0] : null });
-    localStorage.setItem('reproduccion_ganadero', JSON.stringify(reproduccion));
+    const reproData = {
+      arete: document.getElementById('arete-repro').value.trim(),
+      tipo: document.getElementById('tipo-servicio').value,
+      semental: document.getElementById('semental-repro').value.trim(),
+      fechaServicio: fServ,
+      estado: est,
+      fechaProbableParto: est === 'Preñada' ? new Date(new Date(fServ+'T00:00:00').setDate(new Date(fServ+'T00:00:00').getDate() + 283)).toISOString().split('T')[0] : null
+    };
+    await addDoc(collection(db, "reproduccion"), reproData);
     formRepro.reset();
-    actualizarTodo();
-    alert('✅ Evento reproductivo / palpación registrado.');
+    alert('✅ Evento reproductivo guardado en la nube.');
   });
 }
 
 if (formSanidad) {
-  formSanidad.addEventListener('submit', (e) => {
+  formSanidad.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const insumoId = parseInt(selectInsumoSanidad.value);
+    const insumoId = selectInsumoSanidad.value;
     if (insumoId) {
-      const idx = medicamentos.findIndex(m => m.id === insumoId);
-      if (idx !== -1) {
-        medicamentos[idx].existencia = Math.max(0, medicamentos[idx].existencia - parseFloat(document.getElementById('descontar-cantidad').value || 1));
-        localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos));
+      const insumo = medicamentos.find(m => m.idDoc === insumoId);
+      if (insumo) {
+        const nuevaExistencia = Math.max(0, insumo.existencia - parseFloat(document.getElementById('descontar-cantidad').value || 1));
+        await updateDoc(doc(db, "medicamentos", insumoId), { existencia: nuevaExistencia });
       }
     }
-    sanidad.push({ id: Date.now(), arete: document.getElementById('arete-sanidad').value.trim(), tipo: document.getElementById('tipo-sanidad').value, producto: inputProductoSanidad.value.trim(), dosis: document.getElementById('dosis-sanidad').value.trim(), fechaAplicacion: inputFechaSanidad.value, proximaAplicacion: document.getElementById('proxima-sanidad').value });
-    localStorage.setItem('sanidad_ganadero', JSON.stringify(sanidad));
+    const sanidadData = {
+      arete: document.getElementById('arete-sanidad').value.trim(),
+      tipo: document.getElementById('tipo-sanidad').value,
+      producto: inputProductoSanidad.value.trim(),
+      dosis: document.getElementById('dosis-sanidad').value.trim(),
+      fechaAplicacion: inputFechaSanidad.value,
+      proximaAplicacion: document.getElementById('proxima-sanidad').value
+    };
+    await addDoc(collection(db, "sanidad"), sanidadData);
     formSanidad.reset(); inputFechaSanidad.value = hoyISO;
-    actualizarTodo();
-    alert('✅ Control sanitario registrado.');
+    alert('✅ Control sanitario guardado en la nube.');
   });
 }
 
 if (formPeso) {
-  formPeso.addEventListener('submit', (e) => {
+  formPeso.addEventListener('submit', async (e) => {
     e.preventDefault();
-    pesajes.push({ id: Date.now(), arete: document.getElementById('arete-peso').value.trim(), fecha: inputFechaPeso.value, peso: parseFloat(document.getElementById('peso-animal').value) });
-    localStorage.setItem('pesajes_ganadero', JSON.stringify(pesajes));
+    const pesoData = {
+      arete: document.getElementById('arete-peso').value.trim(),
+      fecha: inputFechaPeso.value,
+      peso: parseFloat(document.getElementById('peso-animal').value)
+    };
+    await addDoc(collection(db, "pesajes"), pesoData);
     formPeso.reset(); inputFechaPeso.value = hoyISO;
-    actualizarTodo();
-    alert('✅ Peso registrado con éxito.');
+    alert('✅ Peso registrado en la nube.');
   });
 }
 
 if (formFinanzas) {
-  formFinanzas.addEventListener('submit', (e) => {
+  formFinanzas.addEventListener('submit', async (e) => {
     e.preventDefault();
-    finanzas.push({ id: Date.now(), tipo: selectTipoFinanza.value, categoria: selectCatFinanza.value, monto: parseFloat(document.getElementById('monto-finanza').value), fecha: inputFechaFinanza.value, concepto: document.getElementById('concepto-finanza').value.trim() });
-    localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
+    const finanzaData = {
+      tipo: selectTipoFinanza.value,
+      categoria: selectCatFinanza.value,
+      monto: parseFloat(document.getElementById('monto-finanza').value),
+      fecha: inputFechaFinanza.value,
+      concepto: document.getElementById('concepto-finanza').value.trim()
+    };
+    await addDoc(collection(db, "finanzas"), finanzaData);
     formFinanzas.reset(); inputFechaFinanza.value = hoyISO;
-    actualizarTodo();
-    alert('✅ Movimiento financiero registrado.');
+    alert('✅ Movimiento financiero guardado en la nube.');
   });
 }
 
 if (formMedicamento) {
-  formMedicamento.addEventListener('submit', (e) => {
+  formMedicamento.addEventListener('submit', async (e) => {
     e.preventDefault();
     const costo = parseFloat(document.getElementById('precio-medicamento').value) || 0;
     const nom = document.getElementById('nombre-medicamento').value.trim();
     const cant = parseFloat(document.getElementById('existencia-medicamento').value);
     const un = document.getElementById('unidad-medicamento').value.trim();
-    medicamentos.push({ id: Date.now(), nombre: nom, presentacion: document.getElementById('presentacion-medicamento').value.trim(), existencia: cant, unidad: un, caducidad: document.getElementById('caducidad-medicamento').value, precio: costo, fechaEntrada: inputFechaMedEntrada.value });
-    localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos));
+    
+    const medData = {
+      nombre: nom,
+      presentacion: document.getElementById('presentacion-medicamento').value.trim(),
+      existencia: cant,
+      unidad: un,
+      caducidad: document.getElementById('caducidad-medicamento').value,
+      precio: costo,
+      fechaEntrada: inputFechaMedEntrada.value
+    };
+    await addDoc(collection(db, "medicamentos"), medData);
+
     if (costo > 0) {
-      finanzas.push({ id: Date.now() + 1, tipo: 'Egreso', categoria: 'Medicamentos', monto: costo, fecha: inputFechaMedEntrada.value, concepto: `Compra de ${nom} (${cant} ${un})` });
-      localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
+      await addDoc(collection(db, "finanzas"), {
+        tipo: 'Egreso',
+        categoria: 'Medicamentos',
+        monto: costo,
+        fecha: inputFechaMedEntrada.value,
+        concepto: `Compra de ${nom} (${cant} ${un})`
+      });
     }
     formMedicamento.reset(); inputFechaMedEntrada.value = hoyISO;
-    actualizarTodo();
-    alert('✅ Insumo registrado en inventario.');
+    alert('✅ Insumo registrado en la nube.');
   });
 }
 
-// Otras eliminaciones
-window.eliminarRepro = (i) => { if (confirm('¿Eliminar registro?')) { reproduccion.splice(i,1); localStorage.setItem('reproduccion_ganadero', JSON.stringify(reproduccion)); actualizarTodo(); } };
-window.eliminarSanidad = (i) => { if (confirm('¿Eliminar registro?')) { sanidad.splice(i,1); localStorage.setItem('sanidad_ganadero', JSON.stringify(sanidad)); actualizarTodo(); } };
-window.eliminarPesaje = (i) => { if (confirm('¿Eliminar pesaje?')) { pesajes.splice(i,1); localStorage.setItem('pesajes_ganadero', JSON.stringify(pesajes)); actualizarTodo(); } };
-window.eliminarFinanza = (i) => { if (confirm('¿Eliminar movimiento?')) { finanzas.splice(i,1); localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas)); actualizarTodo(); } };
-window.eliminarMedicamento = (i) => { if (confirm('¿Eliminar insumo?')) { medicamentos.splice(i,1); localStorage.setItem('medicamentos_ganadero', JSON.stringify(medicamentos)); actualizarTodo(); } };
-window.eliminarBaja = (i) => { if (confirm('¿Eliminar este registro de baja?')) { bajas.splice(i, 1); localStorage.setItem('bajas_ganadero', JSON.stringify(bajas)); actualizarTodo(); } };
+// Eliminación en la nube
+window.eliminarRegistro = async (coleccion, idDoc) => {
+  if (confirm(`¿Estás seguro de eliminar este registro?`)) {
+    try {
+      await deleteDoc(doc(db, coleccion, idDoc));
+      alert('✅ Eliminado correctamente de la nube.');
+    } catch (err) {
+      alert('❌ Error al eliminar: ' + err.message);
+    }
+  }
+};
 
-window.exportarCSV = () => { if (inventario.length === 0) return alert('Inventario vacío.'); let csv = "Arete,Nombre,Sexo,Categoria,Raza,Propietario\n"; inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''},${a.propietario||''}\n`); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "Inventario_Rancho.csv"; link.click(); };
-window.descargarRespaldoJSON = () => { const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas, bajas }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); };
-window.restaurarRespaldoJSON = () => { const file = document.getElementById('file-restaurar').files[0]; if (!file) return alert('Selecciona un archivo JSON.'); const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if (data.inventario) localStorage.setItem('inventario_ganadero', JSON.stringify(data.inventario)); if (data.reproduccion) localStorage.setItem('reproduccion_ganadero', JSON.stringify(data.reproduccion)); if (data.pesajes) localStorage.setItem('pesajes_ganadero', JSON.stringify(data.pesajes)); if (data.sanidad) localStorage.setItem('sanidad_ganadero', JSON.stringify(data.sanidad)); if (data.medicamentos) localStorage.setItem('medicamentos_ganadero', JSON.stringify(data.medicamentos)); if (data.finanzas) localStorage.setItem('finanzas_ganadero', JSON.stringify(data.finanzas)); if (data.bajas) localStorage.setItem('bajas_ganadero', JSON.stringify(data.bajas)); alert('✅ Datos restaurados con éxito.'); location.reload(); } catch (err) { alert('❌ Archivo inválido.'); } }; reader.readAsText(file); };
+window.eliminarAnimal = async (idDoc) => {
+  if (confirm(`¿Estás seguro de eliminar este animal?`)) {
+    try {
+      await deleteDoc(doc(db, "inventario", idDoc));
+      alert('✅ Animal eliminado de la nube.');
+    } catch (err) {
+      alert('❌ Error al eliminar: ' + err.message);
+    }
+  }
+};
 
-// Inicialización
+window.exportarCSV = () => { 
+  if (inventario.length === 0) return alert('Inventario vacío.'); 
+  let csv = "Arete,Nombre,Sexo,Categoria,Raza\n"; 
+  inventario.forEach(a => csv += `${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.raza||''}\n`); 
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); 
+  link.download = "Inventario_Rancho.csv"; link.click(); 
+};
+
+window.descargarRespaldoJSON = () => { 
+  const data = { inventario, reproduccion, pesajes, sanidad, medicamentos, finanzas }; 
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); 
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); 
+  link.download = `Respaldo_Ganadero_${hoyISO}.json`; link.click(); 
+};
+
+window.restaurarRespaldoJSON = () => { 
+  alert('⚠️ Para restaurar una copia masiva hacia la nube, se recomienda ingresar los registros directamente desde la interfaz.'); 
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-  actualizarEtapasFisiologicas();
-  actualizarTodo();
+  iniciarSincronizacionNube();
 });

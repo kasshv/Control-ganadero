@@ -8,6 +8,7 @@ let sanidad = JSON.parse(localStorage.getItem('sanidad_ganadero')) || [];
 let medicamentos = JSON.parse(localStorage.getItem('medicamentos_ganadero')) || [];
 let finanzas = JSON.parse(localStorage.getItem('finanzas_ganadero')) || [];
 let bajas = JSON.parse(localStorage.getItem('bajas_ganadero')) || [];
+let alertasIgnoradas = JSON.parse(localStorage.getItem('alertas_ignoradas_ganadero')) || [];
 let nombreRancho = localStorage.getItem('nombre_rancho_ganadero') || 'Rancho San Antonio';
 
 let chartInvInstance = null;
@@ -15,7 +16,7 @@ let chartFinInstance = null;
 
 // Fechas default
 const hoyISO = new Date().toISOString().split('T')[0];
-['fecha-servicio', 'fecha-peso', 'fecha-sanidad', 'fecha-entrada-medicamento', 'fecha-finanza', 'fecha-baja'].forEach(id => {
+['fecha-servicio', 'fecha-peso', 'fecha-sanidad', 'fecha-entrada-medicamento', 'fecha-finanza', 'fecha-baja', 'edit-fecha-baja'].forEach(id => {
   if (document.getElementById(id)) document.getElementById(id).value = hoyISO;
 });
 
@@ -136,7 +137,7 @@ function renderizarReportesEnOperaciones() {
 }
 
 // ==========================================
-// 4. FUNCIONES AUTOMÁTICAS Y DE BAJA
+// 4. FUNCIONES AUTOMÁTICAS Y DE ALARMAS
 // ==========================================
 function actualizarDatosGlobales() {
   document.getElementById('subtitulo-rancho').textContent = nombreRancho;
@@ -170,6 +171,72 @@ function actualizarDatosGlobales() {
   if(document.getElementById('vista-inventario').style.display==='block') renderizarInventario();
 }
 
+function verificarAlertasTotales() {
+  const lista = document.getElementById('lista-alertas'); const cont = document.getElementById('contenedor-alertas');
+  if (!lista || !cont) return; lista.innerHTML = '';
+  const hoy = new Date(); hoy.setHours(0,0,0,0); const alertas = [];
+
+  inventario.forEach(a => {
+    if (a.fechaNacimiento) {
+      const m = (hoy - new Date(a.fechaNacimiento + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.416);
+      const idAlerta = `destete_${a.arete}`;
+      if (m >= 7 && m < 8 && !alertasIgnoradas.includes(idAlerta)) {
+        alertas.push(`<li id="alerta_${idAlerta}">🌾 <strong>Aviso de Destete:</strong> Animal #${a.arete} tiene ${m.toFixed(1)} meses. <button onclick="quitarAlerta('${idAlerta}')" style="background:none; border:none; color:#92400e; cursor:pointer; font-weight:bold; margin-left:8px;">❌</button></li>`);
+      }
+    }
+  });
+  reproduccion.forEach(reg => {
+    if (reg.estado === 'Preñada' && reg.fechaProbableParto) {
+      const d = Math.ceil((new Date(reg.fechaProbableParto + 'T00:00:00') - hoy) / 86400000);
+      const idAlerta = `parto_${reg.arete}_${reg.id}`;
+      if (d >= 0 && d <= 15 && !alertasIgnoradas.includes(idAlerta)) {
+        alertas.push(`<li id="alerta_${idAlerta}">🍼 <strong>Parto Próximo:</strong> Vaca #${reg.arete} parirá en <strong>${d} días</strong>. <button onclick="quitarAlerta('${idAlerta}')" style="background:none; border:none; color:#92400e; cursor:pointer; font-weight:bold; margin-left:8px;">❌</button></li>`);
+      }
+    }
+  });
+  medicamentos.forEach((med, idx) => {
+    const idAlerta = `stock_${idx}_${med.nombre}`;
+    if (med.existencia <= 2 && !alertasIgnoradas.includes(idAlerta)) {
+      alertas.push(`<li id="alerta_${idAlerta}">📦 <strong>Stock Bajo:</strong> Quedan ${med.existencia} ${med.unidad} de ${med.nombre}. <button onclick="quitarAlerta('${idAlerta}')" style="background:none; border:none; color:#92400e; cursor:pointer; font-weight:bold; margin-left:8px;">❌</button></li>`);
+    }
+  });
+
+  if (alertas.length > 0) { lista.innerHTML = alertas.join(''); cont.style.display = 'block'; } 
+  else { cont.style.display = 'none'; }
+}
+
+window.quitarAlerta = function(idAlerta) {
+  if (!alertasIgnoradas.includes(idAlerta)) {
+    alertasIgnoradas.push(idAlerta);
+    localStorage.setItem('alertas_ignoradas_ganadero', JSON.stringify(alertasIgnoradas));
+  }
+  const el = document.getElementById(`alerta_${idAlerta}`);
+  if(el) el.remove();
+  verificarContenedorAlertas();
+};
+
+window.verificarContenedorAlertas = function() { 
+  const lista = document.getElementById('lista-alertas'); 
+  if (lista && lista.children.length === 0) document.getElementById('contenedor-alertas').style.display = 'none'; 
+};
+
+window.limpiarTodasAlertas = function() {
+  document.querySelectorAll('#lista-alertas li').forEach(li => {
+    const btn = li.querySelector('button');
+    if(btn) {
+      const onclickAttr = btn.getAttribute('onclick');
+      if(onclickAttr) {
+        const match = onclickAttr.match(/'([^']+)'/);
+        if(match && match[1]) {
+          if(!alertasIgnoradas.includes(match[1])) alertasIgnoradas.push(match[1]);
+        }
+      }
+    }
+  });
+  localStorage.setItem('alertas_ignoradas_ganadero', JSON.stringify(alertasIgnoradas));
+  document.getElementById('contenedor-alertas').style.display = 'none';
+};
+
 // Lógica de Modales de Baja
 window.abrirModalBaja = function(arete) {
   document.getElementById('baja-arete-input').value = arete;
@@ -196,7 +263,6 @@ window.procesarBajaAnimal = function(e) {
   if(motivo === 'Venta') {
     const precio = parseFloat(document.getElementById('precio-venta').value) || 0;
     detalle = `Venta: ${formatearMoneda(precio)}`;
-    // Agregar ingreso automático a finanzas
     finanzas.push({ id: Date.now(), tipo: 'Ingreso', categoria: 'Venta de animales', monto: precio, fecha: fecha, concepto: `Venta de animal arete #${arete}` });
     localStorage.setItem('finanzas_ganadero', JSON.stringify(finanzas));
   } else {
@@ -204,11 +270,9 @@ window.procesarBajaAnimal = function(e) {
     detalle = `Causa: ${causa}`;
   }
 
-  // Registrar en Bajas
-  bajas.push({ arete: animal.arete, nombre: animal.nombre || '-', categoria: animal.categoria, motivo: motivo, detalle: detalle, fecha: fecha });
+  bajas.push({ id: Date.now(), arete: animal.arete, nombre: animal.nombre || '-', categoria: animal.categoria, motivo: motivo, detalle: detalle, fecha: fecha });
   localStorage.setItem('bajas_ganadero', JSON.stringify(bajas));
 
-  // Remover de Inventario
   inventario = inventario.filter(a => a.arete !== arete);
   localStorage.setItem('inventario_ganadero', JSON.stringify(inventario));
 
@@ -216,6 +280,50 @@ window.procesarBajaAnimal = function(e) {
   actualizarDatosGlobales();
   renderizarInventario();
   alert('✅ Animal dado de baja correctamente.');
+};
+
+// Funciones para Editar y Eliminar en Historial de Bajas
+window.abrirModalEditarBaja = function(id) {
+  const baja = bajas.find(b => b.id === id);
+  if(!baja) return;
+  document.getElementById('edit-baja-index').value = baja.id;
+  document.getElementById('modal-edit-baja-arete').textContent = '#' + baja.arete;
+  document.getElementById('edit-motivo-baja').value = baja.motivo;
+  document.getElementById('edit-detalle-baja').value = baja.detalle;
+  document.getElementById('edit-fecha-baja').value = baja.fecha;
+  document.getElementById('modal-editar-baja').style.display = 'block';
+};
+
+window.cerrarModalEditarBaja = function() {
+  document.getElementById('modal-editar-baja').style.display = 'none';
+};
+
+window.cambiarMotivoBajaEdicion = function() {
+  // Opcional si se quiere personalizar placeholder en el futuro
+};
+
+window.procesarEdicionBaja = function(e) {
+  e.preventDefault();
+  const idBaja = parseInt(document.getElementById('edit-baja-index').value);
+  const index = bajas.findIndex(b => b.id === idBaja);
+  if(index === -1) return;
+
+  bajas[index].motivo = document.getElementById('edit-motivo-baja').value;
+  bajas[index].detalle = document.getElementById('edit-detalle-baja').value.trim();
+  bajas[index].fecha = document.getElementById('edit-fecha-baja').value;
+
+  localStorage.setItem('bajas_ganadero', JSON.stringify(bajas));
+  cerrarModalEditarBaja();
+  renderizarBajas();
+  alert('✅ Registro de baja actualizado correctamente.');
+};
+
+window.eliminarBajaHistorial = function(id) {
+  if(!confirm('¿Estás seguro de eliminar este registro del historial de bajas? (Esto no regresa el animal al inventario automáticamente).')) return;
+  bajas = bajas.filter(b => b.id !== id);
+  localStorage.setItem('bajas_ganadero', JSON.stringify(bajas));
+  renderizarBajas();
+  alert('🗑️ Registro eliminado del historial.');
 };
 
 // ==========================================
@@ -227,7 +335,7 @@ window.cargarAnimalParaEditar = function(arete) {
   document.getElementById('arete').value = an.arete; document.getElementById('id-interno').value = an.idInterno||''; document.getElementById('nombre').value = an.nombre||'';
   document.getElementById('sexo').value = an.sexo; document.getElementById('categoria').value = an.categoria; document.getElementById('raza').value = an.raza||'';
   document.getElementById('fecha-nacimiento').value = an.fechaNacimiento||''; document.getElementById('madre').value = an.madre||'';
-  document.getElementById('propietario').value = an.propietario||'Lupe Mendez'; document.getElementById('procedencia').value = an.procedencia||'';
+  document.getElementById('propietario').value = an.propietario||'Lupe Mendez'; document.getElementById('procedencia').value = an.procedencia||'NACIDO RANCHO';
   document.getElementById('titulo-form-animal').textContent = `✏️ Editando Animal: #${an.arete}`; document.getElementById('btn-submit-animal').textContent = 'Actualizar'; document.getElementById('btn-cancelar-animal').style.display = 'block';
   cambiarVista('principal'); window.scrollTo(0, document.getElementById('form-animal').offsetTop);
 };
@@ -283,35 +391,8 @@ window.cargarFinanzaParaEditar = function(id) {
 window.cancelarEdicionFinanza = function() { document.getElementById('form-finanzas').reset(); document.getElementById('edit-id-finanza').value = ""; document.getElementById('titulo-form-finanza').textContent = "💰 Movimientos Económicos"; document.getElementById('btn-submit-finanza').textContent = "Registrar Movimiento"; document.getElementById('btn-cancelar-finanza').style.display = "none"; };
 
 // ==========================================
-// 6. ALERTAS Y RENDERIZADO DE TABLAS
+// 6. RENDERIZADO DE TABLAS
 // ==========================================
-function verificarAlertasTotales() {
-  const lista = document.getElementById('lista-alertas'); const cont = document.getElementById('contenedor-alertas');
-  if (!lista || !cont) return; lista.innerHTML = '';
-  const hoy = new Date(); hoy.setHours(0,0,0,0); const alertas = [];
-
-  inventario.forEach(a => {
-    if (a.fechaNacimiento) {
-      const m = (hoy - new Date(a.fechaNacimiento + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.416);
-      if (m >= 7 && m < 8) alertas.push(`<li>🌾 <strong>Aviso de Destete:</strong> Animal #${a.arete} tiene ${m.toFixed(1)} meses. <button onclick="this.parentElement.remove(); verificarContenedorAlertas();" style="background:none; border:none; color:#92400e; cursor:pointer; font-weight:bold; margin-left:8px;">❌</button></li>`);
-    }
-  });
-  reproduccion.forEach(reg => {
-    if (reg.estado === 'Preñada' && reg.fechaProbableParto) {
-      const d = Math.ceil((new Date(reg.fechaProbableParto + 'T00:00:00') - hoy) / 86400000);
-      if (d >= 0 && d <= 15) alertas.push(`<li>🍼 <strong>Parto Próximo:</strong> Vaca #${reg.arete} parirá en <strong>${d} días</strong>. <button onclick="this.parentElement.remove(); verificarContenedorAlertas();" style="background:none; border:none; color:#92400e; cursor:pointer; font-weight:bold; margin-left:8px;">❌</button></li>`);
-    }
-  });
-  medicamentos.forEach(med => {
-    if (med.existencia <= 2) alertas.push(`<li>📦 <strong>Stock Bajo:</strong> Quedan ${med.existencia} ${med.unidad} de ${med.nombre}. <button onclick="this.parentElement.remove(); verificarContenedorAlertas();" style="background:none; border:none; color:#92400e; cursor:pointer; font-weight:bold; margin-left:8px;">❌</button></li>`);
-  });
-
-  if (alertas.length > 0) { lista.innerHTML = alertas.join(''); cont.style.display = 'block'; } 
-  else { cont.style.display = 'none'; }
-}
-window.verificarContenedorAlertas = function() { const lista = document.getElementById('lista-alertas'); if (lista && lista.children.length === 0) document.getElementById('contenedor-alertas').style.display = 'none'; };
-window.limpiarTodasAlertas = function() { document.getElementById('contenedor-alertas').style.display = 'none'; };
-
 window.filtrarInventarioPropietario = function(prop, botonRef) {
   document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('activo')); botonRef.classList.add('activo');
   renderizarInventario(prop === 'Todos' ? inventario : inventario.filter(a => a.propietario === prop));
@@ -393,10 +474,10 @@ function renderizarFinanzas(lista = finanzas) {
 
 function renderizarBajas() {
   const tb = document.getElementById('tabla-bajas'); if(!tb) return;
-  tb.innerHTML = bajas.length === 0 ? `<tr><td colspan="6" style="text-align:center;">Sin registros de baja.</td></tr>` : '';
+  tb.innerHTML = bajas.length === 0 ? `<tr><td colspan="7" style="text-align:center;">Sin registros de baja.</td></tr>` : '';
   [...bajas].reverse().forEach(b => {
     const badgeMotivo = b.motivo === 'Venta' ? 'baja-venta' : 'baja-muerte';
-    tb.innerHTML += `<tr><td><strong>${b.arete}</strong></td><td>${b.nombre}</td><td>${b.categoria}</td><td><span class="badge-baja ${badgeMotivo}">${b.motivo}</span></td><td>${b.detalle}</td><td>${formatearFecha(b.fecha)}</td></tr>`;
+    tb.innerHTML += `<tr><td><strong>${b.arete}</strong></td><td>${b.nombre}</td><td>${b.categoria}</td><td><span class="badge-baja ${badgeMotivo}">${b.motivo}</span></td><td>${b.detalle}</td><td>${formatearFecha(b.fecha)}</td><td><div class="acciones-grupo"><button class="btn-editar" onclick="abrirModalEditarBaja(${b.id})">Editar</button><button class="btn-danger" onclick="eliminarBajaHistorial(${b.id})">❌</button></div></td></tr>`;
   });
 }
 
@@ -405,7 +486,7 @@ window.verHistorial = function(arete) {
   const animal = inventario.find(a => a.arete === arete); if (!animal) return;
   document.getElementById('modal-titulo-animal').innerHTML = `🐄 Expediente de: <strong>#${animal.arete}</strong> ${animal.nombre ? ' (' + animal.nombre + ')' : ''}`;
   const celdaFoto = animal.foto ? `<img src="${animal.foto}" style="width:110px; height:110px; object-fit:cover; border-radius:8px; border:2px solid #ccc;">` : `<div style="width:110px; height:110px; background:#eee; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#999;">Sin Foto</div>`;
-  document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Propietario:</strong> ${animal.propietario || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
+  document.getElementById('modal-info-basica').innerHTML = `<div style="display:flex; gap:20px; align-items:center;">${celdaFoto}<div style="font-size: 14px;"><p style="margin:4px 0;"><strong>Sexo:</strong> ${animal.sexo}</p><p style="margin:4px 0;"><strong>Categoría:</strong> ${animal.categoria}</p><p style="margin:4px 0;"><strong>Propietario:</strong> ${animal.propietario || '-'}</p><p style="margin:4px 0;"><strong>Procedencia:</strong> ${animal.procedencia || '-'}</p><p style="margin:4px 0;"><strong>Edad:</strong> ${calcularEdad(animal.fechaNacimiento)}</p></div></div>`;
   const crias = inventario.filter(a => a.madre === arete); const tbodyCrias = document.getElementById('modal-tabla-crias');
   tbodyCrias.innerHTML = crias.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#777;">Sin crías.</td></tr>` : '';
   crias.forEach(c => tbodyCrias.innerHTML += `<tr><td><strong>${c.arete}</strong></td><td>${c.nombre || '-'}</td><td>${c.sexo}</td><td>${formatearFecha(c.fechaNacimiento)}</td><td>${calcularEdad(c.fechaNacimiento)}</td></tr>`);
@@ -423,7 +504,7 @@ document.getElementById('form-animal').addEventListener('submit', async (e) => {
   e.preventDefault(); const orig = document.getElementById('edit-arete-original').value;
   const nuevo = document.getElementById('arete').value.trim(); const fot = document.getElementById('foto').files[0];
   let b64 = fot ? await obtenerBase64(fot) : (orig ? inventario.find(a=>a.arete===orig)?.foto||'' : '');
-  const data = { arete:nuevo, idInterno:document.getElementById('id-interno').value.trim(), nombre:document.getElementById('nombre').value.trim(), sexo:document.getElementById('sexo').value, categoria:document.getElementById('categoria').value, raza:document.getElementById('raza').value.trim(), fechaNacimiento:document.getElementById('fecha-nacimiento').value, madre:document.getElementById('madre').value.trim(), propietario:document.getElementById('propietario').value, procedencia:document.getElementById('procedencia').value.trim(), foto:b64 };
+  const data = { arete:nuevo, idInterno:document.getElementById('id-interno').value.trim(), nombre:document.getElementById('nombre').value.trim(), sexo:document.getElementById('sexo').value, categoria:document.getElementById('categoria').value, raza:document.getElementById('raza').value.trim(), fechaNacimiento:document.getElementById('fecha-nacimiento').value, madre:document.getElementById('madre').value.trim(), propietario:document.getElementById('propietario').value, procedencia:document.getElementById('procedencia').value, foto:b64 };
   if(orig === "") { if(inventario.some(a=>a.arete===nuevo)) return alert('Ya existe este arete.'); inventario.push(data); }
   else { const i = inventario.findIndex(a=>a.arete===orig); if(i!==-1) inventario[i] = data; cancelarEdicionAnimal(); }
   actualizarDatosGlobales(); document.getElementById('form-animal').reset(); alert('✅ Guardado');
@@ -491,10 +572,10 @@ window.eliminarRegistro = function(tipo, val) {
 });
 
 window.exportarCSV = () => { let c="Arete,Nombre,Sexo,Categoria,Propietario\n"; inventario.forEach(a=>c+=`${a.arete},${a.nombre||''},${a.sexo},${a.categoria},${a.propietario||''}\n`); const l=document.createElement("a"); l.href=URL.createObjectURL(new Blob([c], {type:'text/csv;charset=utf-8;'})); l.download="Inventario.csv"; l.click(); };
-window.descargarRespaldoJSON = () => { const l=document.createElement("a"); l.href=URL.createObjectURL(new Blob([JSON.stringify({inventario,reproduccion,pesajes,sanidad,medicamentos,finanzas,bajas},null,2)],{type:'application/json'})); l.download=`Respaldo_${hoyISO}.json`; l.click(); };
+window.descargarRespaldoJSON = () => { const l=document.createElement("a"); l.href=URL.createObjectURL(new Blob([JSON.stringify({inventario,reproduccion,pesajes,sanidad,medicamentos,finanzas,bajas,alertasIgnoradas},null,2)],{type:'application/json'})); l.download=`Respaldo_${hoyISO}.json`; l.click(); };
 window.restaurarRespaldoJSON = () => {
   const file = document.getElementById('file-restaurar').files[0]; if(!file) return alert('Selecciona archivo.');
-  const r = new FileReader(); r.onload=e=>{ try{ const d=JSON.parse(e.target.result); if(d.inventario){inventario=d.inventario;localStorage.setItem('inventario_ganadero',JSON.stringify(inventario));} if(d.reproduccion){reproduccion=d.reproduccion;localStorage.setItem('reproduccion_ganadero',JSON.stringify(reproduccion));} if(d.pesajes){pesajes=d.pesajes;localStorage.setItem('pesajes_ganadero',JSON.stringify(pesajes));} if(d.sanidad){sanidad=d.sanidad;localStorage.setItem('sanidad_ganadero',JSON.stringify(sanidad));} if(d.medicamentos){medicamentos=d.medicamentos;localStorage.setItem('medicamentos_ganadero',JSON.stringify(medicamentos));} if(d.finanzas){finanzas=d.finanzas;localStorage.setItem('finanzas_ganadero',JSON.stringify(finanzas));} if(d.bajas){bajas=d.bajas;localStorage.setItem('bajas_ganadero',JSON.stringify(bajas));} alert('✅ Restaurado'); actualizarDatosGlobales(); document.getElementById('file-restaurar').value=""; }catch(err){alert('❌ Error: '+err.message);} }; r.readAsText(file);
+  const r = new FileReader(); r.onload=e=>{ try{ const d=JSON.parse(e.target.result); if(d.inventario){inventario=d.inventario;localStorage.setItem('inventario_ganadero',JSON.stringify(inventario));} if(d.reproduccion){reproduccion=d.reproduccion;localStorage.setItem('reproduccion_ganadero',JSON.stringify(reproduccion));} if(d.pesajes){pesajes=d.pesajes;localStorage.setItem('pesajes_ganadero',JSON.stringify(pesajes));} if(d.sanidad){sanidad=d.sanidad;localStorage.setItem('sanidad_ganadero',JSON.stringify(sanidad));} if(d.medicamentos){medicamentos=d.medicamentos;localStorage.setItem('medicamentos_ganadero',JSON.stringify(medicamentos));} if(d.finanzas){finanzas=d.finanzas;localStorage.setItem('finanzas_ganadero',JSON.stringify(finanzas));} if(d.bajas){bajas=d.bajas;localStorage.setItem('bajas_ganadero',JSON.stringify(bajas));} if(d.alertasIgnoradas){alertasIgnoradas=d.alertasIgnoradas;localStorage.setItem('alertas_ignoradas_ganadero',JSON.stringify(alertasIgnoradas));} alert('✅ Restaurado'); actualizarDatosGlobales(); document.getElementById('file-restaurar').value=""; }catch(err){alert('❌ Error: '+err.message);} }; r.readAsText(file);
 };
 
 document.addEventListener('DOMContentLoaded', actualizarDatosGlobales);

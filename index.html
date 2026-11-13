@@ -27,7 +27,7 @@
     <ul id="lista-alertas"></ul>
   </div>
 
-  <!-- CUADRÍCULA DE NAVEGACIÓN PRINCIPAL (9 BOTONES CON BAJAS) -->
+  <!-- CUADRÍCULA DE NAVEGACIÓN PRINCIPAL (9 BOTONES) -->
   <div class="card card-nav">
     <h3>🗂️ Módulos y Secciones del Sistema</h3>
     <div class="contenedor-nav">
@@ -61,15 +61,36 @@
           <div class="form-group">
             <label>Categoría (*):</label>
             <select id="categoria" required>
-              <optgroup label="Machos"><option value="Becerro">Becerro</option><option value="Becerro destete">Becerro destete</option><option value="Torete">Torete</option><option value="Toro joven">Toro joven</option><option value="Toro adulto">Toro adulto</option><option value="Semental / Toro">Semental / Toro</option><option value="Toro de engorda">Toro de engorda</option></optgroup>
-              <optgroup label="Hembras"><option value="Becerra">Becerra</option><option value="Becerra destete">Becerra destete</option><option value="Novillona">Novillona</option><option value="Vaquilla">Vaquilla</option><option value="Vaca en producción">Vaca en producción</option><option value="Vaca seca / Vientre">Vaca seca / Vientre</option></optgroup>
+              <optgroup label="Machos">
+                <option value="Becerro">Becerro (0 a 7 meses)</option>
+                <option value="Becerro destete">Becerro destete (7 a 12 meses)</option>
+                <option value="Torete">Torete (12 a 18 meses)</option>
+                <option value="Toro joven">Toro joven (18 a 24 meses)</option>
+                <option value="Toro adulto">Toro adulto (Más de 24 meses)</option>
+                <option value="Semental / Toro">Semental / Toro (Reproductor)</option>
+                <option value="Toro de engorda">Toro de engorda</option>
+              </optgroup>
+              <optgroup label="Hembras">
+                <option value="Becerra">Becerra (0 a 7 meses)</option>
+                <option value="Becerra destete">Becerra destete (7 a 12 meses)</option>
+                <option value="Novillona">Novillona (12 a 24 meses)</option>
+                <option value="Vaquilla">Vaquilla (Primer servicio/gestación)</option>
+                <option value="Vaca en producción">Vaca en producción (En ordeña/cría)</option>
+                <option value="Vaca seca / Vientre">Vaca seca / Vientre</option>
+              </optgroup>
             </select>
           </div>
           <div class="form-group"><label>Raza:</label><input type="text" id="raza"></div>
           <div class="form-group"><label>Fecha Nacimiento:</label><input type="date" id="fecha-nacimiento"></div>
           <div class="form-group"><label>Madre:</label><input type="text" id="madre" list="lista-madres" autocomplete="off"><datalist id="lista-madres"></datalist></div>
           <div class="form-group"><label>Propietario (*):</label><select id="propietario" required><option value="Lupe Mendez">Lupe Mendez</option><option value="Jacobo">Jacobo</option><option value="Kassandra">Kassandra</option></select></div>
-          <div class="form-group"><label>Procedencia:</label><input type="text" id="procedencia"></div>
+          <div class="form-group">
+            <label>Procedencia (*):</label>
+            <select id="procedencia" required>
+              <option value="NACIDO RANCHO">NACIDO RANCHO</option>
+              <option value="COMPRA">COMPRA</option>
+            </select>
+          </div>
           <div class="form-group" style="grid-column: span 2;"><label>Fotografía:</label><input type="file" id="foto" accept="image/*"></div>
         </div>
         <div class="form-actions">
@@ -336,7 +357,7 @@
       <h2>🏷️ Historial de Animales Dados de Baja</h2>
       <div class="tabla-contenedor">
         <table>
-          <thead><tr><th>Arete</th><th>Nombre</th><th>Categoría</th><th>Motivo</th><th>Detalle / Precio</th><th>Fecha de Baja</th></tr></thead>
+          <thead><tr><th>Arete</th><th>Nombre</th><th>Categoría</th><th>Motivo</th><th>Detalle / Precio</th><th>Fecha de Baja</th><th>Acciones</th></tr></thead>
           <tbody id="tabla-bajas"></tbody>
         </table>
       </div>
@@ -371,6 +392,33 @@
           <input type="date" id="fecha-baja" required>
         </div>
         <button type="submit" class="btn-submit" style="background-color: var(--danger); width: 100%;">Confirmar Baja</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- VENTANA MODAL EDITAR BAJA -->
+  <div id="modal-editar-baja" class="modal-oculto">
+    <div class="modal-contenido" style="max-width: 450px;">
+      <span class="cerrar-modal" onclick="cerrarModalEditarBaja()">&times;</span>
+      <h2 style="margin-top: 0; color: var(--info);">Editar Baja: <span id="modal-edit-baja-arete"></span></h2>
+      <form id="form-editar-baja" onsubmit="procesarEdicionBaja(event)">
+        <input type="hidden" id="edit-baja-index">
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label>Motivo de Baja (*):</label>
+          <select id="edit-motivo-baja" onchange="cambiarMotivoBajaEdicion()" required>
+            <option value="Venta">Venta</option>
+            <option value="Muerte">Muerte</option>
+          </select>
+        </div>
+        <div id="edit-contenedor-detalle" class="form-group" style="margin-bottom: 15px;">
+          <label>Detalle / Precio / Causa (*):</label>
+          <input type="text" id="edit-detalle-baja" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label>Fecha de Baja (*):</label>
+          <input type="date" id="edit-fecha-baja" required>
+        </div>
+        <button type="submit" class="btn-submit" style="background-color: var(--info); width: 100%;">Actualizar Baja</button>
       </form>
     </div>
   </div>
